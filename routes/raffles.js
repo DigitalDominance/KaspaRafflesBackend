@@ -203,19 +203,30 @@ router.get('/:raffleId', async (req, res) => {
  * GET /api/raffles
  * List raffles. Show live raffles or completed within last 12 hours.
  */
+/**
+ * GET /api/raffles
+ * List raffles.
+ * If a query parameter "creator" is provided, filter by that; otherwise, show live raffles or completed within last 12 hours.
+ */
 router.get('/', async (req, res) => {
   try {
-    const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
-    const raffles = await Raffle.find({
-      $or: [
-        { status: "live" },
-        { status: "completed", completedAt: { $gte: twelveHoursAgo } }
-      ]
-    }).sort({ currentEntries: -1 });
+    let query = {};
+    if (req.query.creator) {
+      // Filter by the creator address provided in the query.
+      query.creator = req.query.creator;
+    } else {
+      // No creator filter provided – show raffles that are live or were completed in the last 12 hours.
+      const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+      query = {
+        $or: [
+          { status: "live" },
+          { status: "completed", completedAt: { $gte: twelveHoursAgo } }
+        ]
+      };
+    }
+    const raffles = await Raffle.find(query).sort({ currentEntries: -1 });
     res.json({ success: true, raffles });
   } catch (err) {
     res.status(500).json({ error: 'Unexpected error: ' + err.message });
   }
 });
-
-module.exports = router;
