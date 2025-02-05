@@ -12,7 +12,9 @@ app.use(cors({
   origin: 'https://kaspa-raffles-frontend-569b7d5f25f3.herokuapp.com'
 }));
 
-// Connect to MongoDB
+// Optionally, handle preflight OPTIONS requests:
+app.options('*', cors());
+
 mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost/kaspa-raffles', {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -24,10 +26,8 @@ mongoose.connection.on('error', (err) => {
   console.error('MongoDB connection error:', err);
 });
 
-// API routes
 app.use('/api/raffles', rafflesRoute);
 
-// Health-check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
