@@ -1,3 +1,4 @@
+// backend/routes/raffles.js
 const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
@@ -14,7 +15,7 @@ async function validateTicker(ticker) {
     console.log("Token info for", formattedTicker, ":", response.data);
     if (response.data && response.data.result && response.data.result.length > 0) {
       const tokenInfo = response.data.result[0];
-      // In your system, finished tokens are the ones that are fully minted.
+      // For our system, a token is considered valid if its state is 'finished'
       return tokenInfo.state.toLowerCase() === 'finished';
     }
     return false;
@@ -24,7 +25,7 @@ async function validateTicker(ticker) {
   }
 }
 
-// Create Raffle endpoint: accepts prizeType, prizeAmount, and (if KRC20) prizeTicker.
+// Create Raffle endpoint: Accepts raffle and prize details.
 router.post('/create', async (req, res) => {
   try {
     const {
@@ -65,12 +66,11 @@ router.post('/create', async (req, res) => {
       return res.status(500).json({ error: 'Error creating raffle wallet: ' + walletData.error });
     }
     
-    // Compute prizeDisplay
+    // Compute prizeDisplay.
     let prizeDisplay = "";
     if (prizeType === "KAS") {
       prizeDisplay = `${prizeAmount} KAS`;
     } else {
-      // For prizeType KRC20, use prizeTicker (which should be provided in a separate field)
       const prizeTicker = req.body.prizeTicker ? req.body.prizeTicker.trim().toUpperCase() : "";
       prizeDisplay = `${prizeAmount} ${prizeTicker}`;
     }
@@ -102,25 +102,46 @@ router.post('/create', async (req, res) => {
     res.status(500).json({ error: 'Unexpected error: ' + err.message });
   }
 });
-// Endpoint to record an entry for a raffle.
+
+// Prize Confirmation endpoint.
+router.post('/:raffleId/confirmPrize', async (req, res) => {
+  try {
+    const raffle = await Raffle.findOne({ raffleId: req.params.raffleId });
+    if (!raffle) return res.status(404).json({ error: 'Raffle not found' });
+    
+    const { txid } = req.body;
+    if (!txid) {
+      return res.status(400).json({ error: 'Prize transaction ID not provided' });
+    }
+    
+    raffle.prizeConfirmed = true;
+    raffle.prizeTransactionId = txid;
+    await raffle.save();
+    res.json({ success: true, raffle });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// New endpoint: Record a raffle entry.
 router.post('/:raffleId/enter', async (req, res) => {
   try {
     const raffle = await Raffle.findOne({ raffleId: req.params.raffleId });
     if (!raffle) return res.status(404).json({ error: 'Raffle not found' });
-
+    
     const { txid, walletAddress, amount } = req.body;
     if (!txid || !walletAddress || !amount) {
       return res.status(400).json({ error: 'Missing parameters' });
     }
-
-    // Calculate credits: credits = amount / creditConversion.
+    
+    // Calculate credits based on the conversion rate.
     const creditsToAdd = amount / parseFloat(raffle.creditConversion);
-
-    // Update overall entries totals.
+    
     raffle.currentEntries += creditsToAdd;
     raffle.totalEntries += creditsToAdd;
-
-    // Update the entries array: if an entry for this wallet exists, update it; otherwise, create a new one.
+    
+    // Update the entries array.
     const existingEntry = raffle.entries.find(e => e.walletAddress === walletAddress);
     if (existingEntry) {
       existingEntry.creditsAdded += creditsToAdd;
@@ -135,8 +156,7 @@ router.post('/:raffleId/enter', async (req, res) => {
         confirmedAt: new Date()
       });
     }
-
-    // Save the transaction in processedTransactions as well.
+    
     raffle.processedTransactions.push({
       txid,
       coinType: raffle.type === 'KAS' ? 'KAS' : raffle.tokenTicker,
@@ -144,28 +164,7 @@ router.post('/:raffleId/enter', async (req, res) => {
       creditsAdded: creditsToAdd,
       timestamp: new Date()
     });
-
-    await raffle.save();
-    res.json({ success: true, raffle });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Prize Confirmation endpoint: updates prizeConfirmed and saves the txid.
-router.post('/:raffleId/confirmPrize', async (req, res) => {
-  try {
-    const raffle = await Raffle.findOne({ raffleId: req.params.raffleId });
-    if (!raffle) return res.status(404).json({ error: 'Raffle not found' });
     
-    const { txid } = req.body;
-    if (!txid) {
-      return res.status(400).json({ error: 'Prize transaction ID not provided' });
-    }
-    
-    raffle.prizeConfirmed = true;
-    raffle.prizeTransactionId = txid;
     await raffle.save();
     res.json({ success: true, raffle });
   } catch (err) {
@@ -190,13 +189,11 @@ router.get('/:raffleId', async (req, res) => {
 
 /**
  * GET /api/raffles
- * List raffles. Optionally filter by creator.
+ * List raffles. Show live raffles or completed within last 12 hours.
  */
-// In backend/routes/raffles.js:
 router.get('/', async (req, res) => {
   try {
     const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
-    // Show raffles that are live, or completed within the last 12 hours.
     const raffles = await Raffle.find({
       $or: [
         { status: "live" },
