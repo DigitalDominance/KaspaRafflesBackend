@@ -34,16 +34,24 @@ async function validateTicker(ticker) {
  */
 router.post('/create', async (req, res) => {
   try {
-    const { type, tokenTicker, timeFrame, creditConversion, prize, creator } = req.body;
-    
-    if (!type || !timeFrame || !creditConversion || !creator) {
+    const {
+      type,
+      tokenTicker,
+      timeFrame,
+      creditConversion,
+      prizeType,
+      prizeAmount
+    } = req.body;
+    const creator = req.body.creator;
+    const treasuryAddress = req.body.treasuryAddress; // passed from frontend env variable
+
+    if (!type || !timeFrame || !creditConversion || !creator || !prizeType || !prizeAmount || !treasuryAddress) {
       return res.status(400).json({ error: 'Missing required parameters' });
     }
     
     if (new Date(timeFrame) <= new Date()) {
       return res.status(400).json({ error: 'Time frame cannot be in the past' });
     }
-    
     if (new Date(timeFrame) > new Date(Date.now() + 5 * 24 * 60 * 60 * 1000)) {
       return res.status(400).json({ error: 'Time frame exceeds maximum 5-day period' });
     }
@@ -54,17 +62,25 @@ router.post('/create', async (req, res) => {
       }
       const validTicker = await validateTicker(tokenTicker);
       if (!validTicker) {
-        return res.status(400).json({ error: 'Invalid or un-finished token ticker' });
+        return res.status(400).json({ error: 'Invalid or un-deployed token ticker' });
       }
     }
-    
-    const raffleId = uuidv4();
     
     // Create a wallet for this raffle.
     const walletData = await createWallet();
     if (!walletData.success) {
       return res.status(500).json({ error: 'Error creating raffle wallet: ' + walletData.error });
     }
+    
+    // Compute prize display string.
+    let prizeDisplay = "";
+    if (prizeType === "KAS") {
+      prizeDisplay = `${prizeAmount} KAS`;
+    } else {
+      prizeDisplay = `${prizeAmount} ${tokenTicker.trim().toUpperCase()}`;
+    }
+    
+    const raffleId = uuidv4();
     
     const raffle = new Raffle({
       raffleId,
@@ -79,7 +95,10 @@ router.post('/create', async (req, res) => {
       tokenTicker: type === 'KRC20' ? tokenTicker.trim().toUpperCase() : undefined,
       timeFrame,
       creditConversion,
-      prize,
+      prizeType,
+      prizeAmount,
+      prizeDisplay,
+      treasuryAddress,
     });
     
     await raffle.save();
@@ -87,6 +106,29 @@ router.post('/create', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Unexpected error: ' + err.message });
+  }
+});
+
+// Prize Confirmation endpoint.
+router.post('/:raffleId/confirmPrize', async (req, res) => {
+  try {
+    const raffle = await Raffle.findOne({ raffleId: req.params.raffleId });
+    if (!raffle) return res.status(404).json({ error: 'Raffle not found' });
+    
+    // In a real implementation, scan the treasury wallet for a prize transaction.
+    // For now, assume the host provides the prize transaction ID (txid) in the body.
+    const { txid } = req.body;
+    if (!txid) {
+      return res.status(400).json({ error: 'Prize transaction ID not provided' });
+    }
+    
+    raffle.prizeConfirmed = true;
+    raffle.prizeTransactionId = txid;
+    await raffle.save();
+    res.json({ success: true, raffle });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
   }
 });
 
