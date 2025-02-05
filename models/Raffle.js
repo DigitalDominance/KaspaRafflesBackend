@@ -1,4 +1,3 @@
-// backend/models/Raffle.js
 const mongoose = require('mongoose');
 
 const RaffleSchema = new mongoose.Schema({
@@ -14,16 +13,15 @@ const RaffleSchema = new mongoose.Schema({
   tokenTicker: { type: String }, // Only for KRC20 raffles
   timeFrame: { type: Date, required: true },
   creditConversion: { type: Number, required: true },
-  // New prize fields:
+  // Prize fields
   prizeType: { type: String, enum: ['KAS', 'KRC20'], required: true },
   prizeAmount: { type: Number, required: true },
-  // Computed display string (e.g., "1000 KAS" or "500 NACHO")
-  prizeDisplay: { type: String },
-  // Treasury wallet that must receive the prize
+  prizeDisplay: { type: String },  // computed string (e.g. "1000 KAS" or "500 NACHO")
   treasuryAddress: { type: String, required: true },
   prizeConfirmed: { type: Boolean, default: false },
+  prizeTransactionId: { type: String },
   
-  // Deposit scanning and entries
+  // For deposit tracking (we will simply store txids that come instantly)
   entries: [{
     walletAddress: String,
     txid: { type: String, sparse: true },
@@ -35,7 +33,7 @@ const RaffleSchema = new mongoose.Schema({
   currentEntries: { type: Number, default: 0 },
   processedTransactions: { type: Array, default: [] },
   
-  status: { type: String, default: "live" }, // "live" or "completed"
+  status: { type: String, default: "live" },  // "live" or "completed"
   completedAt: Date,
   winner: String,
   createdAt: { type: Date, default: Date.now }
