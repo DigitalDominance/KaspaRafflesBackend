@@ -4,19 +4,21 @@ const { v4: uuidv4 } = require('uuid');
 const { createWallet } = require('../wasm_rpc');
 const Raffle = require('../models/Raffle');
 const axios = require('axios');
+const { processRaffleTokenDeposits, processRaffleKaspaDeposits } = require('../depositProcessors');
 
 /**
  * Validate a given token ticker using the Kasplex API.
+ * Note: For tokens that are finished minting, check if the state is "finished".
  */
 async function validateTicker(ticker) {
   try {
     const formattedTicker = ticker.trim().toUpperCase();
-    const url = `https://api.kasplex.org/v1/krc20/token/${formattedTicker}`;
+    const url = `https://tn10api.kasplex.org/v1/krc20/token/${formattedTicker}`;
     const response = await axios.get(url);
     console.log("Token info for", formattedTicker, ":", response.data);
     if (response.data && response.data.result && response.data.result.length > 0) {
       const tokenInfo = response.data.result[0];
-      // Compare state in a case-insensitive manner.
+      // Instead of "deployed", use "finished" if that's what the API returns for tokens ready to be used.
       return tokenInfo.state.toLowerCase() === 'finished';
     }
     return false;
@@ -26,26 +28,6 @@ async function validateTicker(ticker) {
   }
 }
 
-const { processRaffleTokenDeposits, processRaffleKaspaDeposits } = require('../depositProcessors');
-
-router.post('/:raffleId/process', async (req, res) => {
-  try {
-    const raffle = await Raffle.findOne({ raffleId: req.params.raffleId });
-    if (!raffle) return res.status(404).json({ error: 'Raffle not found' });
-    
-    if (raffle.type === 'KAS') {
-      await processRaffleKaspaDeposits(raffle);
-    } else if (raffle.type === 'KRC20') {
-      await processRaffleTokenDeposits(raffle);
-    }
-    
-    await raffle.save();
-    res.json({ success: true, raffle });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
-  }
-});
 /**
  * POST /api/raffles/create
  * Create a new raffle.
@@ -72,7 +54,7 @@ router.post('/create', async (req, res) => {
       }
       const validTicker = await validateTicker(tokenTicker);
       if (!validTicker) {
-        return res.status(400).json({ error: 'Invalid or un-deployed token ticker' });
+        return res.status(400).json({ error: 'Invalid or un-finished token ticker' });
       }
     }
     
@@ -86,7 +68,7 @@ router.post('/create', async (req, res) => {
     
     const raffle = new Raffle({
       raffleId,
-      creator, // store the creator’s wallet address
+      creator,
       wallet: {
         mnemonic: walletData.mnemonic,
         xPrv: walletData.xPrv,
@@ -94,7 +76,7 @@ router.post('/create', async (req, res) => {
         changeAddress: walletData.changeAddress,
       },
       type,
-      tokenTicker: type === 'KRC20' ? tokenTicker : undefined,
+      tokenTicker: type === 'KRC20' ? tokenTicker.trim().toUpperCase() : undefined,
       timeFrame,
       creditConversion,
       prize,
@@ -124,7 +106,7 @@ router.get('/:raffleId', async (req, res) => {
 
 /**
  * GET /api/raffles
- * List raffles. Optional filtering by creator via query parameter.
+ * List raffles. Optionally filter by creator.
  */
 router.get('/', async (req, res) => {
   try {
@@ -133,6 +115,29 @@ router.get('/', async (req, res) => {
     res.json({ success: true, raffles });
   } catch (err) {
     res.status(500).json({ error: 'Unexpected error: ' + err.message });
+  }
+});
+
+/**
+ * POST /api/raffles/:raffleId/process
+ * Manually trigger processing for a raffle.
+ */
+router.post('/:raffleId/process', async (req, res) => {
+  try {
+    const raffle = await Raffle.findOne({ raffleId: req.params.raffleId });
+    if (!raffle) return res.status(404).json({ error: 'Raffle not found' });
+    
+    if (raffle.type === 'KAS') {
+      await processRaffleKaspaDeposits(raffle);
+    } else if (raffle.type === 'KRC20') {
+      await processRaffleTokenDeposits(raffle);
+    }
+    
+    await raffle.save();
+    res.json({ success: true, raffle });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
   }
 });
 
