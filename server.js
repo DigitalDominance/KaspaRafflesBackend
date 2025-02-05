@@ -3,7 +3,6 @@ const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const cors = require('cors'); // require cors
 const rafflesRoute = require('./routes/raffles');
-require('./scheduler');
 
 const app = express();
 app.use(bodyParser.json());
