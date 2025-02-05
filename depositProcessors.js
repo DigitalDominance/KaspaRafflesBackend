@@ -1,18 +1,9 @@
 // backend/depositProcessors.js
 const axios = require("axios");
 
-// Define conversion factors (modify as needed)
-const CREDIT_CONVERSION = {
-  KAS: 1, // 1 credit = 1 KAS
-  // For KRC20, assume that 1 credit equals the amount set by host,
-  // so the conversion factor is effectively 1 (the raffle host decides how many tokens = 1 entry)
-  KRC20: 1,
-};
-
 /**
  * Process KRC20 deposits for a raffle.
- * This will query the Kasplex API for token transfers to the raffle wallet,
- * using the raffle's dynamically set tokenTicker.
+ * Uses the raffle's tokenTicker and dynamic creditConversion.
  */
 async function processRaffleTokenDeposits(raffle) {
   if (!Array.isArray(raffle.processedTransactions)) {
@@ -44,10 +35,9 @@ async function processRaffleTokenDeposits(raffle) {
         (t) => t.txid === txid
       );
       
-      // Process only "transfer" operations to this wallet that haven't been processed
       if (opType === "transfer" && toAddress === walletAddress && !alreadyProcessed) {
-        // Here, the raffle.host defines the credit conversion.
-        // For example, if raffle.creditConversion is 1000, then 1000 tokens = 1 entry.
+        // Calculate credits dynamically:
+        // If raffle.creditConversion is 1000, then credits = amount / 1000.
         const creditsToAdd = amount / parseFloat(raffle.creditConversion);
         raffle.currentEntries = (raffle.currentEntries || 0) + creditsToAdd;
         raffle.totalEntries = (raffle.totalEntries || 0) + creditsToAdd;
@@ -101,7 +91,8 @@ async function processRaffleKaspaDeposits(raffle) {
           (t) => t.txid === txHash
         );
         if (!alreadyProcessed) {
-          const creditsToAdd = sumToWallet / 1; // 1 credit per KAS
+          // Use the dynamic conversion:
+          const creditsToAdd = sumToWallet / parseFloat(raffle.creditConversion);
           raffle.currentEntries = (raffle.currentEntries || 0) + creditsToAdd;
           raffle.totalEntries = (raffle.totalEntries || 0) + creditsToAdd;
           
