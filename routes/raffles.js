@@ -130,6 +130,11 @@ router.post('/:raffleId/enter', async (req, res) => {
     const raffle = await Raffle.findOne({ raffleId: req.params.raffleId });
     if (!raffle) return res.status(404).json({ error: 'Raffle not found' });
     
+    // Only allow entries if the raffle is still live.
+    if (raffle.status !== "live") {
+      return res.status(400).json({ error: 'Raffle is no longer live' });
+    }
+    
     const { txid, walletAddress, amount } = req.body;
     if (!txid || !walletAddress || !amount) {
       return res.status(400).json({ error: 'Missing parameters' });
@@ -172,6 +177,7 @@ router.post('/:raffleId/enter', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 /**
  * GET /api/raffles/:raffleId
