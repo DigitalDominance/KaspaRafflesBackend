@@ -21,7 +21,7 @@ async function scanAllRaffles() {
   }
 }
 
-// Schedule the scan to run once every minute
+// Schedule to run every minute
 cron.schedule('* * * * *', () => {
   console.log('Running scheduled raffle scan...');
   scanAllRaffles();
