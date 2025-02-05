@@ -10,11 +10,14 @@ const axios = require('axios');
  */
 async function validateTicker(ticker) {
   try {
-    const url = `https://tn10api.kasplex.org/v1/krc20/token/${ticker}`;
+    const formattedTicker = ticker.trim().toUpperCase();
+    const url = `https://tn10api.kasplex.org/v1/krc20/token/${formattedTicker}`;
     const response = await axios.get(url);
+    console.log("Token info for", formattedTicker, ":", response.data);
     if (response.data && response.data.result && response.data.result.length > 0) {
       const tokenInfo = response.data.result[0];
-      return tokenInfo.state === 'deployed';
+      // Compare state in a case-insensitive manner.
+      return tokenInfo.state.toLowerCase() === 'deployed';
     }
     return false;
   } catch (err) {
@@ -22,6 +25,7 @@ async function validateTicker(ticker) {
     return false;
   }
 }
+
 const { processRaffleTokenDeposits, processRaffleKaspaDeposits } = require('../depositProcessors');
 
 router.post('/:raffleId/process', async (req, res) => {
