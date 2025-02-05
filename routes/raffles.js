@@ -17,7 +17,7 @@ async function validateTicker(ticker) {
     if (response.data && response.data.result && response.data.result.length > 0) {
       const tokenInfo = response.data.result[0];
       // Compare state in a case-insensitive manner.
-      return tokenInfo.state.toLowerCase() === 'deployed';
+      return tokenInfo.state.toLowerCase() === 'finished';
     }
     return false;
   } catch (err) {
