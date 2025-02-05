@@ -1,15 +1,18 @@
+// backend/depositProcessors.js
 const axios = require("axios");
 
-// In this example the conversion factors are one-to-one.
+// Define conversion factors (modify as needed)
 const CREDIT_CONVERSION = {
+  KAS: 1, // 1 credit = 1 KAS
+  // For KRC20, assume that 1 credit equals the amount set by host,
+  // so the conversion factor is effectively 1 (the raffle host decides how many tokens = 1 entry)
   KRC20: 1,
-  KAS: 1,
 };
 
 /**
- * Process KRC20 token deposits for a raffle.
- *
- * @param {Object} raffle - A raffle document from MongoDB.
+ * Process KRC20 deposits for a raffle.
+ * This will query the Kasplex API for token transfers to the raffle wallet,
+ * using the raffle's dynamically set tokenTicker.
  */
 async function processRaffleTokenDeposits(raffle) {
   if (!Array.isArray(raffle.processedTransactions)) {
@@ -17,7 +20,7 @@ async function processRaffleTokenDeposits(raffle) {
   }
   
   const walletAddress = raffle.wallet.receivingAddress;
-  const ticker = raffle.tokenTicker;
+  const ticker = raffle.tokenTicker.trim().toUpperCase();
   const url = `https://api.kasplex.org/v1/krc20/oplist?address=${walletAddress}&tick=${ticker}`;
   
   try {
@@ -31,9 +34,9 @@ async function processRaffleTokenDeposits(raffle) {
     
     for (const tx of transactions) {
       const txid = tx.hashRev;
-      // Convert sompi (1e8) into token units.
+      // Convert sompi (1e8) into token units
       const amount = parseInt(tx.amt, 10) / 1e8;
-      const opType = tx.op;
+      const opType = tx.op.toLowerCase();
       const toAddress = tx.to;
       
       // Skip if already processed
@@ -41,39 +44,33 @@ async function processRaffleTokenDeposits(raffle) {
         (t) => t.txid === txid
       );
       
-      if (
-        opType.toLowerCase() === "transfer" &&
-        toAddress === walletAddress &&
-        !alreadyProcessed
-      ) {
-        // Only credit if deposit meets the minimum (creditConversion).
-        if (amount >= raffle.creditConversion / 1e8) {
-          const entriesToAdd = amount * CREDIT_CONVERSION.KRC20;
-          raffle.currentEntries = (raffle.currentEntries || 0) + entriesToAdd;
-          raffle.totalEntries = (raffle.totalEntries || 0) + entriesToAdd;
-        }
+      // Process only "transfer" operations to this wallet that haven't been processed
+      if (opType === "transfer" && toAddress === walletAddress && !alreadyProcessed) {
+        // Here, the raffle.host defines the credit conversion.
+        // For example, if raffle.creditConversion is 1000, then 1000 tokens = 1 entry.
+        const creditsToAdd = amount / parseFloat(raffle.creditConversion);
+        raffle.currentEntries = (raffle.currentEntries || 0) + creditsToAdd;
+        raffle.totalEntries = (raffle.totalEntries || 0) + creditsToAdd;
         
         raffle.processedTransactions.push({
           txid,
           coinType: ticker,
           amount,
+          creditsAdded: creditsToAdd,
           timestamp: new Date()
         });
-        
         console.log(
-          `Processed ${ticker} deposit of ${amount} to raffle ${raffle.raffleId} from tx ${txid}`
+          `Credited ${creditsToAdd.toFixed(8)} entries to raffle ${raffle.raffleId} from ${ticker} tx ${txid}`
         );
       }
     }
   } catch (err) {
-    console.error(`Error fetching ${ticker} deposits for wallet ${walletAddress}:`, err.message);
+    console.error(`Error fetching ${ticker} deposits for ${walletAddress}:`, err.message);
   }
 }
 
 /**
  * Process KAS deposits for a raffle.
- *
- * @param {Object} raffle - A raffle document from MongoDB.
  */
 async function processRaffleKaspaDeposits(raffle) {
   if (!Array.isArray(raffle.processedTransactions)) {
@@ -104,27 +101,25 @@ async function processRaffleKaspaDeposits(raffle) {
           (t) => t.txid === txHash
         );
         if (!alreadyProcessed) {
-          if (sumToWallet >= raffle.creditConversion / 1e8) {
-            const entriesToAdd = sumToWallet * CREDIT_CONVERSION.KAS;
-            raffle.currentEntries = (raffle.currentEntries || 0) + entriesToAdd;
-            raffle.totalEntries = (raffle.totalEntries || 0) + entriesToAdd;
-          }
+          const creditsToAdd = sumToWallet / 1; // 1 credit per KAS
+          raffle.currentEntries = (raffle.currentEntries || 0) + creditsToAdd;
+          raffle.totalEntries = (raffle.totalEntries || 0) + creditsToAdd;
           
           raffle.processedTransactions.push({
             txid: txHash,
             coinType: "KAS",
             amount: sumToWallet,
+            creditsAdded: creditsToAdd,
             timestamp: new Date()
           });
-          
           console.log(
-            `Processed KAS deposit of ${sumToWallet} to raffle ${raffle.raffleId} from tx ${txHash}`
+            `Credited ${creditsToAdd.toFixed(8)} entries to raffle ${raffle.raffleId} from KAS tx ${txHash}`
           );
         }
       }
     }
   } catch (err) {
-    console.error(`Error fetching KAS deposits for wallet ${walletAddress}:`, err.message);
+    console.error(`Error fetching KAS for ${walletAddress}:`, err.message);
   }
 }
 
