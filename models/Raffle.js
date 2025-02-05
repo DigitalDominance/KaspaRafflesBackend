@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const RaffleSchema = new mongoose.Schema({
   raffleId: { type: String, unique: true, required: true },
-  creator: { type: String, required: true }, // <-- NEW: stores creator wallet address
+  creator: { type: String, required: true }, // stores creator wallet address
   wallet: {
     mnemonic: { type: String, required: true },
     xPrv: { type: String, required: true },
@@ -13,12 +13,11 @@ const RaffleSchema = new mongoose.Schema({
   tokenTicker: { type: String },
   timeFrame: { type: Date, required: true },
   creditConversion: { type: Number, required: true },
-  // creditConversion is the number of tokens needed per raffle entry.
   prize: { type: String },
   createdAt: { type: Date, default: Date.now },
   entries: [{
     walletAddress: String,
-    txid: { type: String, unique: true },
+    txid: { type: String, sparse: true },  // Use sparse index so that null values aren’t enforced for uniqueness
     amount: Number,
     confirmedAt: Date,
   }],
