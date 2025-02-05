@@ -22,7 +22,26 @@ async function validateTicker(ticker) {
     return false;
   }
 }
+const { processRaffleTokenDeposits, processRaffleKaspaDeposits } = require('../depositProcessors');
 
+router.post('/:raffleId/process', async (req, res) => {
+  try {
+    const raffle = await Raffle.findOne({ raffleId: req.params.raffleId });
+    if (!raffle) return res.status(404).json({ error: 'Raffle not found' });
+    
+    if (raffle.type === 'KAS') {
+      await processRaffleKaspaDeposits(raffle);
+    } else if (raffle.type === 'KRC20') {
+      await processRaffleTokenDeposits(raffle);
+    }
+    
+    await raffle.save();
+    res.json({ success: true, raffle });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
 /**
  * POST /api/raffles/create
  * Create a new raffle.
