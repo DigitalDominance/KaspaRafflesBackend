@@ -1,64 +1,48 @@
 const cron = require('node-cron');
 const Raffle = require('./models/Raffle');
-const { processRaffleTokenDeposits, processRaffleKaspaDeposits } = require('./depositProcessors');
 
-async function completeRaffle(raffle) {
-  // Aggregate entries by wallet address:
-  const walletTotals = {};
-  raffle.entries.forEach(entry => {
-    const wallet = entry.walletAddress;
-    walletTotals[wallet] = (walletTotals[wallet] || 0) + entry.creditsAdded;
-  });
-  const totalCredits = Object.values(walletTotals).reduce((sum, val) => sum + val, 0);
-  if (totalCredits === 0) return; // No entries
-
-  // Weighted random selection:
-  let rand = Math.random() * totalCredits;
-  let selected;
-  for (const wallet in walletTotals) {
-    rand -= walletTotals[wallet];
-    if (rand <= 0) {
-      selected = wallet;
-      break;
-    }
-  }
-  raffle.winner = selected;
-  raffle.status = "completed";
-  raffle.completedAt = new Date();
-  console.log(`Raffle ${raffle.raffleId} completed. Winner: ${selected}`);
-  await raffle.save();
-}
-
-async function scanAndCompleteRaffles() {
+// Function to complete expired raffles
+async function completeExpiredRaffles() {
   try {
-    const raffles = await Raffle.find({});
-    console.log(`Scanning ${raffles.length} raffles for deposits and completion...`);
-    for (const raffle of raffles) {
-      // If raffle is live, scan for deposits:
-      if (raffle.status === "live") {
-        if (raffle.type === 'KAS') {
-          await processRaffleKaspaDeposits(raffle);
-        } else if (raffle.type === 'KRC20') {
-          await processRaffleTokenDeposits(raffle);
+    const now = new Date();
+    // Find all raffles that are still live and have reached (or passed) their end time.
+    const expiredRaffles = await Raffle.find({ status: "live", timeFrame: { $lte: now } });
+    console.log(`Found ${expiredRaffles.length} expired raffles to complete.`);
+    for (const raffle of expiredRaffles) {
+      // If there are entries, choose a winner weighted by the credits added.
+      if (raffle.entries && raffle.entries.length > 0) {
+        const walletTotals = {};
+        raffle.entries.forEach(entry => {
+          walletTotals[entry.walletAddress] = (walletTotals[entry.walletAddress] || 0) + entry.creditsAdded;
+        });
+        const totalCredits = Object.values(walletTotals).reduce((sum, val) => sum + val, 0);
+        let random = Math.random() * totalCredits;
+        let chosen = null;
+        for (const [wallet, credits] of Object.entries(walletTotals)) {
+          random -= credits;
+          if (random <= 0) {
+            chosen = wallet;
+            break;
+          }
         }
-        // If time is up, complete the raffle.
-        if (new Date() >= new Date(raffle.timeFrame)) {
-          await completeRaffle(raffle);
-        } else {
-          await raffle.save();
-        }
+        raffle.winner = chosen;
+      } else {
+        raffle.winner = "No Entries";
       }
+      raffle.status = "completed";
+      raffle.completedAt = now;
+      await raffle.save();
+      console.log(`Raffle ${raffle.raffleId} completed. Winner: ${raffle.winner}`);
     }
-    console.log('Scanning and completion complete.');
   } catch (err) {
-    console.error('Error in raffle scheduler:', err);
+    console.error('Error in completing raffles:', err);
   }
 }
 
-// Run every minute.
-cron.schedule('* * * * *', () => {
-  console.log('Running scheduled raffle scan and completion...');
-  scanAndCompleteRaffles();
+// Schedule the job to run every minute
+cron.schedule('* * * * *', async () => {
+  console.log('Running raffle completion scheduler...');
+  await completeExpiredRaffles();
 });
 
-console.log('Raffle scanning scheduler started.');
+console.log('Raffle completion scheduler started.');
