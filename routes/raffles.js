@@ -43,9 +43,15 @@ router.post('/create', async (req, res) => {
       return res.status(400).json({ error: 'Missing required parameters' });
     }
     
+    // Check that timeFrame is in the future.
     if (new Date(timeFrame) <= new Date()) {
       return res.status(400).json({ error: 'Time frame cannot be in the past' });
     }
+    // Check that raffle duration is at least 24 hours.
+    if (new Date(timeFrame) < new Date(Date.now() + 24 * 60 * 60 * 1000)) {
+      return res.status(400).json({ error: 'Raffle must last at least 24 hours' });
+    }
+    // Check that timeFrame does not exceed maximum of 5 days.
     if (new Date(timeFrame) > new Date(Date.now() + 5 * 24 * 60 * 60 * 1000)) {
       return res.status(400).json({ error: 'Time frame exceeds maximum 5-day period' });
     }
@@ -71,6 +77,7 @@ router.post('/create', async (req, res) => {
     if (prizeType === "KAS") {
       prizeDisplay = `${prizeAmount} KAS`;
     } else {
+      // For prizeType KRC20, use prizeTicker (which should be provided in a separate field)
       const prizeTicker = req.body.prizeTicker ? req.body.prizeTicker.trim().toUpperCase() : "";
       prizeDisplay = `${prizeAmount} ${prizeTicker}`;
     }
@@ -103,7 +110,7 @@ router.post('/create', async (req, res) => {
   }
 });
 
-// Prize Confirmation endpoint.
+// Prize Confirmation endpoint: updates prizeConfirmed and saves the txid.
 router.post('/:raffleId/confirmPrize', async (req, res) => {
   try {
     const raffle = await Raffle.findOne({ raffleId: req.params.raffleId });
@@ -177,7 +184,6 @@ router.post('/:raffleId/enter', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 
 /**
  * GET /api/raffles/:raffleId
