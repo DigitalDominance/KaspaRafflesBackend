@@ -11,7 +11,7 @@ const axios = require('axios');
 async function validateTicker(ticker) {
   try {
     const formattedTicker = ticker.trim().toUpperCase();
-    const url = `https://tn10api.kasplex.org/v1/krc20/token/${formattedTicker}`;
+    const url = `https://api.kasplex.org/v1/krc20/token/${formattedTicker}`;
     const response = await axios.get(url);
     console.log("Token info for", formattedTicker, ":", response.data);
     if (response.data && response.data.result && response.data.result.length > 0) {
