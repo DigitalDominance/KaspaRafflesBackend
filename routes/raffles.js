@@ -29,7 +29,6 @@ async function validateTicker(ticker) {
  */
 router.post('/create', async (req, res) => {
   try {
-    // Expecting the creator's wallet address from the frontend
     const { type, tokenTicker, timeFrame, creditConversion, prize, creator } = req.body;
     
     if (!type || !timeFrame || !creditConversion || !creator) {
@@ -64,7 +63,7 @@ router.post('/create', async (req, res) => {
     
     const raffle = new Raffle({
       raffleId,
-      creator, // <-- NEW: store the creator’s wallet address
+      creator, // store the creator’s wallet address
       wallet: {
         mnemonic: walletData.mnemonic,
         xPrv: walletData.xPrv,
@@ -102,11 +101,10 @@ router.get('/:raffleId', async (req, res) => {
 
 /**
  * GET /api/raffles
- * List all raffles.
+ * List raffles. Optional filtering by creator via query parameter.
  */
 router.get('/', async (req, res) => {
   try {
-    // Optional filtering by creator: e.g., ?creator=...
     const query = req.query.creator ? { creator: req.query.creator } : {};
     const raffles = await Raffle.find(query).sort({ totalEntries: -1 });
     res.json({ success: true, raffles });
