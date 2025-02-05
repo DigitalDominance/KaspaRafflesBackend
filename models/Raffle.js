@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const RaffleSchema = new mongoose.Schema({
   raffleId: { type: String, unique: true, required: true },
+  creator: { type: String, required: true }, // <-- NEW: stores creator wallet address
   wallet: {
     mnemonic: { type: String, required: true },
     xPrv: { type: String, required: true },
