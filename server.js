@@ -10,7 +10,7 @@ app.use(bodyParser.json());
 
 // Enable CORS for your specific frontend origin:
 app.use(cors({
-  origin: 'https://kaspa-raffles-frontend-569b7d5f25f3.herokuapp.com'
+  origin: 'https://raffles.kaspercoin.net'
 }));
 
 // Optionally, handle preflight OPTIONS requests:
