@@ -1,3 +1,4 @@
+// backend/models/Raffle.js
 const mongoose = require('mongoose');
 
 const RaffleSchema = new mongoose.Schema({
@@ -10,16 +11,22 @@ const RaffleSchema = new mongoose.Schema({
     changeAddress: { type: String, required: true }
   },
   type: { type: String, enum: ['KAS', 'KRC20'], required: true },
-  tokenTicker: { type: String },
+  tokenTicker: { type: String }, // Only for KRC20 raffles
   timeFrame: { type: Date, required: true },
   creditConversion: { type: Number, required: true },
-  prize: { type: String },
-  createdAt: { type: Date, default: Date.now },
-  // Each entry is a transaction processed from deposits.
+  // New prize fields:
+  prizeType: { type: String, enum: ['KAS', 'KRC20'], required: true },
+  prizeAmount: { type: Number, required: true },
+  // Computed display string (e.g., "1000 KAS" or "500 NACHO")
+  prizeDisplay: { type: String },
+  // Treasury wallet that must receive the prize
+  treasuryAddress: { type: String, required: true },
+  prizeConfirmed: { type: Boolean, default: false },
+  
+  // Deposit scanning and entries
   entries: [{
     walletAddress: String,
     txid: { type: String, sparse: true },
-    // We'll store the “credits” added from each transaction (could be fractional).
     creditsAdded: Number,
     amount: Number,
     confirmedAt: Date,
@@ -27,9 +34,11 @@ const RaffleSchema = new mongoose.Schema({
   totalEntries: { type: Number, default: 0 },
   currentEntries: { type: Number, default: 0 },
   processedTransactions: { type: Array, default: [] },
-  status: { type: String, default: "live" },        // "live" or "completed"
+  
+  status: { type: String, default: "live" }, // "live" or "completed"
   completedAt: Date,
-  winner: String
+  winner: String,
+  createdAt: { type: Date, default: Date.now }
 });
 
 module.exports = mongoose.model('Raffle', RaffleSchema);
