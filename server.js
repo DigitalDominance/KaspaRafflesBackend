@@ -1,12 +1,18 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
+const cors = require('cors'); // require cors
 const rafflesRoute = require('./routes/raffles');
 
 const app = express();
 app.use(bodyParser.json());
 
-// Connect to MongoDB (use your own connection string via process.env.MONGO_URI)
+// Enable CORS for your specific frontend origin:
+app.use(cors({
+  origin: 'https://kaspa-raffles-frontend-569b7d5f25f3.herokuapp.com'
+}));
+
+// Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost/kaspa-raffles', {
   useNewUrlParser: true,
   useUnifiedTopology: true,
