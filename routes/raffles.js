@@ -108,16 +108,22 @@ router.get('/:raffleId', async (req, res) => {
  * GET /api/raffles
  * List raffles. Optionally filter by creator.
  */
+// In backend/routes/raffles.js:
 router.get('/', async (req, res) => {
   try {
-    const query = req.query.creator ? { creator: req.query.creator } : {};
-    const raffles = await Raffle.find(query).sort({ totalEntries: -1 });
+    const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+    // Show raffles that are live, or completed within the last 12 hours.
+    const raffles = await Raffle.find({
+      $or: [
+        { status: "live" },
+        { status: "completed", completedAt: { $gte: twelveHoursAgo } }
+      ]
+    }).sort({ currentEntries: -1 });
     res.json({ success: true, raffles });
   } catch (err) {
     res.status(500).json({ error: 'Unexpected error: ' + err.message });
   }
 });
-
 /**
  * POST /api/raffles/:raffleId/process
  * Manually trigger processing for a raffle.
