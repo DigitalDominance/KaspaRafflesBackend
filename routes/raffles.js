@@ -29,9 +29,10 @@ async function validateTicker(ticker) {
  */
 router.post('/create', async (req, res) => {
   try {
-    const { type, tokenTicker, timeFrame, creditConversion, prize } = req.body;
+    // Expecting the creator's wallet address from the frontend
+    const { type, tokenTicker, timeFrame, creditConversion, prize, creator } = req.body;
     
-    if (!type || !timeFrame || !creditConversion) {
+    if (!type || !timeFrame || !creditConversion || !creator) {
       return res.status(400).json({ error: 'Missing required parameters' });
     }
     
@@ -63,6 +64,7 @@ router.post('/create', async (req, res) => {
     
     const raffle = new Raffle({
       raffleId,
+      creator, // <-- NEW: store the creator’s wallet address
       wallet: {
         mnemonic: walletData.mnemonic,
         xPrv: walletData.xPrv,
@@ -104,7 +106,9 @@ router.get('/:raffleId', async (req, res) => {
  */
 router.get('/', async (req, res) => {
   try {
-    const raffles = await Raffle.find().sort({ totalEntries: -1 });
+    // Optional filtering by creator: e.g., ?creator=...
+    const query = req.query.creator ? { creator: req.query.creator } : {};
+    const raffles = await Raffle.find(query).sort({ totalEntries: -1 });
     res.json({ success: true, raffles });
   } catch (err) {
     res.status(500).json({ error: 'Unexpected error: ' + err.message });
