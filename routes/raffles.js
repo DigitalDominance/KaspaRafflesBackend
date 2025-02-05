@@ -4,21 +4,17 @@ const { v4: uuidv4 } = require('uuid');
 const { createWallet } = require('../wasm_rpc');
 const Raffle = require('../models/Raffle');
 const axios = require('axios');
-const { processRaffleTokenDeposits, processRaffleKaspaDeposits } = require('../depositProcessors');
 
-/**
- * Validate a given token ticker using the Kasplex API.
- * Note: For tokens that are finished minting, check if the state is "finished".
- */
+// Helper: Validate ticker for KRC20 raffles.
 async function validateTicker(ticker) {
   try {
     const formattedTicker = ticker.trim().toUpperCase();
-    const url = `https://api.kasplex.org/v1/krc20/token/${formattedTicker}`;
+    const url = `https://tn10api.kasplex.org/v1/krc20/token/${formattedTicker}`;
     const response = await axios.get(url);
     console.log("Token info for", formattedTicker, ":", response.data);
     if (response.data && response.data.result && response.data.result.length > 0) {
       const tokenInfo = response.data.result[0];
-      // Instead of "deployed", use "finished" if that's what the API returns for tokens ready to be used.
+      // In your system, finished tokens are the ones that are fully minted.
       return tokenInfo.state.toLowerCase() === 'finished';
     }
     return false;
@@ -28,10 +24,7 @@ async function validateTicker(ticker) {
   }
 }
 
-/**
- * POST /api/raffles/create
- * Create a new raffle.
- */
+// Create Raffle endpoint: accepts prizeType, prizeAmount, and (if KRC20) prizeTicker.
 router.post('/create', async (req, res) => {
   try {
     const {
@@ -43,8 +36,8 @@ router.post('/create', async (req, res) => {
       prizeAmount
     } = req.body;
     const creator = req.body.creator;
-    const treasuryAddress = req.body.treasuryAddress; // passed from frontend env variable
-
+    const treasuryAddress = req.body.treasuryAddress;
+    
     if (!type || !timeFrame || !creditConversion || !creator || !prizeType || !prizeAmount || !treasuryAddress) {
       return res.status(400).json({ error: 'Missing required parameters' });
     }
@@ -72,16 +65,17 @@ router.post('/create', async (req, res) => {
       return res.status(500).json({ error: 'Error creating raffle wallet: ' + walletData.error });
     }
     
-    // Compute prize display string.
+    // Compute prizeDisplay
     let prizeDisplay = "";
     if (prizeType === "KAS") {
       prizeDisplay = `${prizeAmount} KAS`;
     } else {
-      prizeDisplay = `${prizeAmount} ${tokenTicker.trim().toUpperCase()}`;
+      // For prizeType KRC20, use prizeTicker (which should be provided in a separate field)
+      const prizeTicker = req.body.prizeTicker ? req.body.prizeTicker.trim().toUpperCase() : "";
+      prizeDisplay = `${prizeAmount} ${prizeTicker}`;
     }
     
     const raffleId = uuidv4();
-    
     const raffle = new Raffle({
       raffleId,
       creator,
@@ -109,14 +103,12 @@ router.post('/create', async (req, res) => {
   }
 });
 
-// Prize Confirmation endpoint.
+// Prize Confirmation endpoint: updates prizeConfirmed and saves the txid.
 router.post('/:raffleId/confirmPrize', async (req, res) => {
   try {
     const raffle = await Raffle.findOne({ raffleId: req.params.raffleId });
     if (!raffle) return res.status(404).json({ error: 'Raffle not found' });
     
-    // In a real implementation, scan the treasury wallet for a prize transaction.
-    // For now, assume the host provides the prize transaction ID (txid) in the body.
     const { txid } = req.body;
     if (!txid) {
       return res.status(400).json({ error: 'Prize transaction ID not provided' });
@@ -167,26 +159,4 @@ router.get('/', async (req, res) => {
   }
 });
 /**
- * POST /api/raffles/:raffleId/process
- * Manually trigger processing for a raffle.
- */
-router.post('/:raffleId/process', async (req, res) => {
-  try {
-    const raffle = await Raffle.findOne({ raffleId: req.params.raffleId });
-    if (!raffle) return res.status(404).json({ error: 'Raffle not found' });
-    
-    if (raffle.type === 'KAS') {
-      await processRaffleKaspaDeposits(raffle);
-    } else if (raffle.type === 'KRC20') {
-      await processRaffleTokenDeposits(raffle);
-    }
-    
-    await raffle.save();
-    res.json({ success: true, raffle });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
 module.exports = router;
