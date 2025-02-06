@@ -1,19 +1,33 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
-const cors = require('cors'); // require cors
+const cors = require('cors');
 const rafflesRoute = require('./routes/raffles');
 require('./scheduler');
 
 const app = express();
 app.use(bodyParser.json());
 
-// Enable CORS for your specific frontend origin:
+// Use a dynamic CORS origin function. For testing, you might allow all origins:
+// app.use(cors());
 app.use(cors({
-  origin: 'https://raffles.kaspercoin.net'
+  origin: function (origin, callback) {
+    // If no origin is provided (like in curl or postman), allow the request.
+    if (!origin) return callback(null, true);
+    const allowedOrigins = [
+      'https://raffles.kaspercoin.net',
+      // You can add other origins if needed:
+      'https://kaspa-raffles-frontend-569b7d5f25f3.herokuapp.com'
+    ];
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  }
 }));
 
-// Optionally, handle preflight OPTIONS requests:
+// Ensure preflight OPTIONS requests are handled.
 app.options('*', cors());
 
 mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost/kaspa-raffles', {
