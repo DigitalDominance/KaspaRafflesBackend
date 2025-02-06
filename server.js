@@ -3,15 +3,16 @@ const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const rafflesRoute = require('./routes/raffles');
+// Require scheduler for its side effects (ensure scheduler.js does not export a middleware function)
 require('./scheduler');
 
 const app = express();
 app.use(bodyParser.json());
 
-// Use CORS middleware. For troubleshooting, you can allow all origins first:
+// CORS middleware: dynamically allow specific origins.
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps, curl, etc.)
+    // Allow requests with no origin (e.g. Postman, curl)
     if (!origin) return callback(null, true);
     const allowedOrigins = [
       'https://raffles.kaspercoin.net',
@@ -26,7 +27,7 @@ app.use(cors({
   }
 }));
 
-// (Optional) Force CORS headers on all responses.
+// Optional: force CORS headers on every request.
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', 'https://raffles.kaspercoin.net');
   res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
@@ -35,7 +36,9 @@ app.use((req, res, next) => {
 });
 
 // Handle preflight OPTIONS requests.
-app.options('*', cors());
+app.options('*', (req, res) => {
+  res.sendStatus(200);
+});
 
 mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost/kaspa-raffles', {
   useNewUrlParser: true,
@@ -50,12 +53,11 @@ mongoose.connection.on('error', (err) => {
 
 app.use('/api/raffles', rafflesRoute);
 
-// Health-check endpoint.
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-// Global error handler that ensures CORS headers are set on errors.
+// Global error handler (ensures CORS headers on error responses)
 app.use((err, req, res, next) => {
   console.error(err);
   res.setHeader('Access-Control-Allow-Origin', 'https://raffles.kaspercoin.net');
