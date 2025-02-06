@@ -1,40 +1,28 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
-const cors = require('cors');
 const rafflesRoute = require('./routes/raffles');
 require('./scheduler');
 
 const app = express();
 app.use(bodyParser.json());
 
-// Standard CORS middleware (using a dynamic origin function)
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps, curl, etc.)
-    if (!origin) return callback(null, true);
-    const allowedOrigins = [
-      'https://raffles.kaspercoin.net',
-      'https://kaspa-raffles-frontend-569b7d5f25f3.herokuapp.com'
-    ];
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.error('CORS rejected origin:', origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  }
-}));
-
-// For a workaround, explicitly set the header on all GET requests:
+// Forcefully set CORS headers for every response.
 app.use((req, res, next) => {
-  if (req.method === 'GET') {
-    // Only allow the specific origin you want (or use "*" to allow all)
-    res.header('Access-Control-Allow-Origin', 'https://raffles.kaspercoin.net');
-  }
+  res.setHeader('Access-Control-Allow-Origin', 'https://raffles.kaspercoin.net');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   next();
 });
 
+// Additionally, handle preflight OPTIONS requests.
+app.options('*', (req, res) => {
+  res.sendStatus(200);
+});
+
+// (Optional) If you still wish to use the cors package for dynamic checking, you can do so before your override:
+const cors = require('cors');
+app.use(cors({ origin: ['https://raffles.kaspercoin.net'] }));
 
 mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost/kaspa-raffles', {
   useNewUrlParser: true,
