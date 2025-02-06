@@ -8,10 +8,10 @@ require('./scheduler');
 const app = express();
 app.use(bodyParser.json());
 
-// Use a dynamic origin function:
+// Standard CORS middleware (using a dynamic origin function)
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (mobile, curl, etc.)
+    // Allow requests with no origin (like mobile apps, curl, etc.)
     if (!origin) return callback(null, true);
     const allowedOrigins = [
       'https://raffles.kaspercoin.net',
@@ -26,7 +26,16 @@ app.use(cors({
   }
 }));
 
-// Handle preflight requests.
+// For a workaround, explicitly set the header on all GET requests:
+app.use((req, res, next) => {
+  if (req.method === 'GET') {
+    // Only allow the specific origin you want (or use "*" to allow all)
+    res.header('Access-Control-Allow-Origin', 'https://raffles.kaspercoin.net');
+  }
+  next();
+});
+
+// Handle preflight OPTIONS requests.
 app.options('*', cors());
 
 mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost/kaspa-raffles', {
