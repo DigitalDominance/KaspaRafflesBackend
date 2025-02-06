@@ -35,8 +35,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Handle preflight OPTIONS requests.
-app.options('*', cors());
 
 mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost/kaspa-raffles', {
   useNewUrlParser: true,
