@@ -1,4 +1,5 @@
-const mongoose = require('mongoose');
+// raffle.js
+const mongoose = require('mongoose'); 
 
 const RaffleSchema = new mongoose.Schema({
   raffleId: { type: String, unique: true, required: true },
@@ -21,6 +22,11 @@ const RaffleSchema = new mongoose.Schema({
   prizeConfirmed: { type: Boolean, default: false },
   prizeTransactionId: { type: String },
   
+  // New field for the number of winners to be selected
+  winnersCount: { type: Number, required: true },
+  // (Optional) If you want to store the actual winners (if multiple) as an array:
+  winnersList: { type: [String], default: [] },
+
   // For deposit tracking (we will simply store txids that come instantly)
   entries: [{
     walletAddress: String,
@@ -34,8 +40,10 @@ const RaffleSchema = new mongoose.Schema({
   processedTransactions: { type: Array, default: [] },
   
   status: { type: String, default: "live" },  // "live" or "completed"
-  completedAt: Date,
+  // For backward compatibility if only one winner is used, you may leave this field.
+  // Otherwise, use winnersList for multiple winners.
   winner: String,
+  completedAt: Date,
   createdAt: { type: Date, default: Date.now }
 });
 
