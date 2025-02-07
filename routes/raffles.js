@@ -37,7 +37,8 @@ router.post('/create', async (req, res) => {
       timeFrame,
       creditConversion,
       prizeType,
-      prizeAmount
+      prizeAmount,
+      winnersCount // New field for the number of winners.
     } = req.body;
     const creator = req.body.creator;
     const treasuryAddress = req.body.treasuryAddress;
@@ -49,7 +50,8 @@ router.post('/create', async (req, res) => {
       !creator ||
       !prizeType ||
       !prizeAmount ||
-      !treasuryAddress
+      !treasuryAddress ||
+      winnersCount === undefined // Validate that winnersCount is provided.
     ) {
       return res.status(400).json({ error: 'Missing required parameters' });
     }
@@ -111,6 +113,8 @@ router.post('/create', async (req, res) => {
       prizeAmount,
       prizeDisplay,
       treasuryAddress,
+      winnersCount: parseInt(winnersCount, 10), // Save the winners count.
+      winnersList: [] // Initialize winnersList as empty.
     });
 
     await raffle.save();
