@@ -93,7 +93,7 @@ async function completeExpiredRaffles() {
 
         // Determine which winners have already been processed.
         // We assume each processed transaction record now includes a `winnerAddress` field.
-        const alreadyProcessed = raffle.processedTransactions.map(tx => tx.winnerAddress);
+        const alreadyProcessed = raffle.prizeDispersalTxids.map(tx => tx.winnerAddress);
 
         // Process each winner that hasn't already been sent a prize.
         for (const winnerAddress of winnersArray) {
@@ -117,6 +117,8 @@ async function completeExpiredRaffles() {
               winnerAddress,
               timestamp: new Date()
             });
+            // Save the prize dispersal TXID in the new field.
+            raffle.prizeDispersalTxids.push({ winnerAddress, txid, timestamp: new Date() });
             // Wait 10 seconds between sending prizes to each winner.
             await sleep(10000);
           } catch (err) {
@@ -127,7 +129,7 @@ async function completeExpiredRaffles() {
 
         // Check if every winner has now been processed.
         const allProcessed = winnersArray.every(
-          winnerAddress => raffle.processedTransactions.some(tx => tx.winnerAddress === winnerAddress)
+          winnerAddress => raffle.prizeDispersalTxids.some(tx => tx.winnerAddress === winnerAddress)
         );
         if (allProcessed && allTxSuccess) {
           raffle.prizeConfirmed = true;
