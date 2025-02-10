@@ -2,10 +2,15 @@ const cron = require('node-cron');
 const Raffle = require('./models/Raffle');
 const { sendKaspa, sendKRC20 } = require('./wasm_rpc');
 
+// Helper function to pause execution (wait n milliseconds)
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function completeExpiredRaffles() {
   try {
     const now = new Date();
-    // Find raffles that are either still "live" and expired OR are completed but prizeDispersed is still false.
+    // Find raffles that are either still "live" (and expired) OR are completed but prizeDispersed is still false.
     const rafflesToProcess = await Raffle.find({
       $or: [
         { status: "live", timeFrame: { $lte: now } },
@@ -15,7 +20,7 @@ async function completeExpiredRaffles() {
     console.log(`Found ${rafflesToProcess.length} raffles to process.`);
 
     for (const raffle of rafflesToProcess) {
-      // If raffle is still live, perform winner selection.
+      // If the raffle is still live, perform winner selection.
       if (raffle.status === "live") {
         if (raffle.entries && raffle.entries.length > 0) {
           const walletTotals = {};
@@ -52,6 +57,7 @@ async function completeExpiredRaffles() {
               }
               if (chosenWallet) {
                 winners.push(chosenWallet);
+                // Remove this wallet so it can't win again.
                 delete availableWallets[chosenWallet];
               }
             }
@@ -70,7 +76,8 @@ async function completeExpiredRaffles() {
         }
       }
 
-      // At this point the raffle status is "completed". Attempt prize dispersal if winners exist.
+      // At this point the raffle status is "completed".
+      // Determine the list of winners for prize dispersal.
       let winnersArray = [];
       if (raffle.winnersList && raffle.winnersList.length > 0) {
         winnersArray = raffle.winnersList;
@@ -82,16 +89,24 @@ async function completeExpiredRaffles() {
       if (winnersArray.length > 0) {
         const totalPrize = raffle.prizeAmount;
         const perWinnerPrize = totalPrize / winnersArray.length;
-        let allTxSuccess = true; // Track if all prize transactions succeed
+        let allTxSuccess = true; // Flag to track overall success
 
-        // Inside your scheduler's prize dispersal loop:
+        // Determine which winners have already been processed.
+        // We assume each processed transaction record now includes a `winnerAddress` field.
+        const alreadyProcessed = raffle.processedTransactions.map(tx => tx.winnerAddress);
+
+        // Process each winner that hasn't already been sent a prize.
         for (const winnerAddress of winnersArray) {
+          if (alreadyProcessed.includes(winnerAddress)) {
+            console.log(`Prize already sent to ${winnerAddress}, skipping.`);
+            continue;
+          }
           try {
             let txid;
             if (raffle.prizeType === "KAS") {
               txid = await sendKaspa(winnerAddress, perWinnerPrize);
             } else if (raffle.prizeType === "KRC20") {
-              // Use raffle.prizeTicker now (instead of raffle.tokenTicker)
+              // Use the stored prize ticker (saved as prizeTicker on creation)
               txid = await sendKRC20(winnerAddress, perWinnerPrize, raffle.prizeTicker);
             }
             console.log(`Sent prize to ${winnerAddress}. Transaction ID: ${txid}`);
@@ -99,15 +114,22 @@ async function completeExpiredRaffles() {
               txid,
               coinType: raffle.prizeType,
               amount: perWinnerPrize,
+              winnerAddress,
               timestamp: new Date()
             });
+            // Wait 10 seconds between sending prizes to each winner.
+            await sleep(10000);
           } catch (err) {
             console.error(`Error sending prize to ${winnerAddress}: ${err.message}`);
             allTxSuccess = false;
           }
         }
 
-        if (allTxSuccess) {
+        // Check if every winner has now been processed.
+        const allProcessed = winnersArray.every(
+          winnerAddress => raffle.processedTransactions.some(tx => tx.winnerAddress === winnerAddress)
+        );
+        if (allProcessed && allTxSuccess) {
           raffle.prizeConfirmed = true;
           raffle.prizeDispersed = true;
         } else {
@@ -115,10 +137,10 @@ async function completeExpiredRaffles() {
         }
         await raffle.save();
 
-        if (allTxSuccess) {
-          console.log(`Raffle ${raffle.raffleId} completed. Winners: ${winnersArray.join(', ')}. Prizes dispersed successfully.`);
+        if (allProcessed && allTxSuccess) {
+          console.log(`Raffle ${raffle.raffleId} completed. All prizes dispersed successfully.`);
         } else {
-          console.log(`Raffle ${raffle.raffleId} completed. Winners: ${winnersArray.join(', ')}. Prize dispersal incomplete. Will reattempt on next scheduler run.`);
+          console.log(`Raffle ${raffle.raffleId} completed. Some prize transactions failed; successful ones will not be resent.`);
         }
       } else {
         console.log(`Raffle ${raffle.raffleId} completed. No valid entries for prize distribution.`);
