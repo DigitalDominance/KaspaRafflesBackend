@@ -16,7 +16,7 @@ app.use(cors({
     if (!origin) return callback(null, true);
     const allowedOrigins = [
       'https://raffles.kaspercoin.net',
-      'https://kaspa-raffles-frontend-569b7d5f25f3.herokuapp.com'
+      'https://kaspa-raffles-frontenddev-e229a2396b6e.herokuapp.com'
     ];
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
@@ -29,7 +29,7 @@ app.use(cors({
 
 // Optional: force CORS headers on every request.
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', 'https://raffles.kaspercoin.net');
+  res.setHeader('Access-Control-Allow-Origin', 'https://kaspa-raffles-frontenddev-e229a2396b6e.herokuapp.com');
   res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   next();
@@ -60,7 +60,7 @@ app.get('/api/health', (req, res) => {
 // Global error handler (ensures CORS headers on error responses)
 app.use((err, req, res, next) => {
   console.error(err);
-  res.setHeader('Access-Control-Allow-Origin', 'https://raffles.kaspercoin.net');
+  res.setHeader('Access-Control-Allow-Origin', 'https://kaspa-raffles-frontenddev-e229a2396b6e.herokuapp.com');
   res.status(500).json({ error: err.message });
 });
 

@@ -84,13 +84,15 @@ async function completeExpiredRaffles() {
         const perWinnerPrize = totalPrize / winnersArray.length;
         let allTxSuccess = true; // Track if all prize transactions succeed
 
+        // Inside your scheduler's prize dispersal loop:
         for (const winnerAddress of winnersArray) {
           try {
             let txid;
             if (raffle.prizeType === "KAS") {
               txid = await sendKaspa(winnerAddress, perWinnerPrize);
             } else if (raffle.prizeType === "KRC20") {
-              txid = await sendKRC20(winnerAddress, perWinnerPrize, raffle.tokenTicker);
+              // Use raffle.prizeTicker now (instead of raffle.tokenTicker)
+              txid = await sendKRC20(winnerAddress, perWinnerPrize, raffle.prizeTicker);
             }
             console.log(`Sent prize to ${winnerAddress}. Transaction ID: ${txid}`);
             raffle.processedTransactions.push({
@@ -104,6 +106,7 @@ async function completeExpiredRaffles() {
             allTxSuccess = false;
           }
         }
+
         if (allTxSuccess) {
           raffle.prizeConfirmed = true;
           raffle.prizeDispersed = true;

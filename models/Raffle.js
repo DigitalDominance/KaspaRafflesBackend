@@ -10,7 +10,8 @@ const RaffleSchema = new mongoose.Schema({
     changeAddress: { type: String, required: true }
   },
   type: { type: String, enum: ['KAS', 'KRC20'], required: true },
-  tokenTicker: { type: String }, // Only for KRC20 raffles
+  tokenTicker: { type: String }, // Only for KRC20 deposits (if used)
+  prizeTicker: { type: String }, // NEW: for KRC20 prizes
   timeFrame: { type: Date, required: true },
   creditConversion: { type: Number, required: true },
   // Prize fields
@@ -19,15 +20,14 @@ const RaffleSchema = new mongoose.Schema({
   prizeDisplay: { type: String },  // computed string (e.g. "1000 KAS" or "500 NACHO")
   treasuryAddress: { type: String, required: true },
   prizeConfirmed: { type: Boolean, default: false },
-  prizeDispersed: { type: Boolean, default: false }, // NEW: tracks if prizes have been successfully dispersed
+  prizeDispersed: { type: Boolean, default: false }, // tracks if prizes have been successfully dispersed
   prizeTransactionId: { type: String },
   
   // New field for the number of winners to be selected
   winnersCount: { type: Number, required: true },
-  // (Optional) If you want to store the actual winners (if multiple) as an array:
   winnersList: { type: [String], default: [] },
 
-  // For deposit tracking (we will simply store txids that come instantly)
+  // For deposit tracking
   entries: [{
     walletAddress: String,
     txid: { type: String, sparse: true },
@@ -40,8 +40,6 @@ const RaffleSchema = new mongoose.Schema({
   processedTransactions: { type: Array, default: [] },
   
   status: { type: String, default: "live" },  // "live" or "completed"
-  // For backward compatibility if only one winner is used, you may leave this field.
-  // Otherwise, use winnersList for multiple winners.
   winner: String,
   completedAt: Date,
   createdAt: { type: Date, default: Date.now }
