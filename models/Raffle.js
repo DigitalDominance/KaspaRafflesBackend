@@ -1,4 +1,3 @@
-// raffle.js
 const mongoose = require('mongoose'); 
 
 const RaffleSchema = new mongoose.Schema({
@@ -20,6 +19,7 @@ const RaffleSchema = new mongoose.Schema({
   prizeDisplay: { type: String },  // computed string (e.g. "1000 KAS" or "500 NACHO")
   treasuryAddress: { type: String, required: true },
   prizeConfirmed: { type: Boolean, default: false },
+  prizeDispersed: { type: Boolean, default: false }, // NEW: tracks if prizes have been successfully dispersed
   prizeTransactionId: { type: String },
   
   // New field for the number of winners to be selected
