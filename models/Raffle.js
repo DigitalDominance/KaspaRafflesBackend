@@ -22,6 +22,17 @@ const RaffleSchema = new mongoose.Schema({
   prizeConfirmed: { type: Boolean, default: false },
   prizeDispersed: { type: Boolean, default: false }, // tracks if prizes have been successfully dispersed
   prizeTransactionId: { type: String },
+  // NEW: Array to store prize dispersal TXIDs per winner.
+  prizeDispersalTxids: { 
+    type: [
+      {
+        winnerAddress: String,
+        txid: String,
+        timestamp: { type: Date, default: Date.now }
+      }
+    ],
+    default: []
+  },
   
   // New field for the number of winners to be selected
   winnersCount: { type: Number, required: true },
