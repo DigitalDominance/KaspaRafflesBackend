@@ -11,13 +11,13 @@ const RaffleSchema = new mongoose.Schema({
   },
   type: { type: String, enum: ['KAS', 'KRC20'], required: true },
   tokenTicker: { type: String }, // Only for KRC20 deposits (if used)
-  prizeTicker: { type: String }, // NEW: for KRC20 prizes
+  prizeTicker: { type: String }, // For KRC20 prizes
   timeFrame: { type: Date, required: true },
   creditConversion: { type: Number, required: true },
   // Prize fields
   prizeType: { type: String, enum: ['KAS', 'KRC20'], required: true },
   prizeAmount: { type: Number, required: true },
-  prizeDisplay: { type: String },  // computed string (e.g. "1000 KAS" or "500 NACHO")
+  prizeDisplay: { type: String },  // e.g. "1000 KAS" or "500 NACHO"
   treasuryAddress: { type: String, required: true },
   prizeConfirmed: { type: Boolean, default: false },
   prizeDispersed: { type: Boolean, default: false }, // tracks if prizes have been successfully dispersed
@@ -34,11 +34,13 @@ const RaffleSchema = new mongoose.Schema({
     default: []
   },
   
-  // New field for the number of winners to be selected
+  // NEW: Boolean to track if generated tokens have been dispersed.
+  generatedTokensDispersed: { type: Boolean, default: false },
+  
   winnersCount: { type: Number, required: true },
   winnersList: { type: [String], default: [] },
 
-  // For deposit tracking
+  // For deposit tracking.
   entries: [{
     walletAddress: String,
     txid: { type: String, sparse: true },
