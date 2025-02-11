@@ -184,7 +184,7 @@ async function completeExpiredRaffles() {
               const tokenInfo = tokenRes.data.result[0];
               // tokenInfo.balance is a string representing the smallest unit.
               const rawBalance = BigInt(tokenInfo.balance);
-              const generatedTokens = Number(rawBalance); // human-readable amount
+              const generatedTokens = Number(rawBalance) / 1e8; // human-readable amount
               console.log(`Raffle ${raffle.raffleId}: KRC20 generated token balance from API: ${generatedTokens}`);
               
               // Top-up: Ensure raffle wallet has at least 20 KAS for gas.
