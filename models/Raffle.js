@@ -6,6 +6,8 @@ const RaffleSchema = new mongoose.Schema({
   wallet: {
     mnemonic: { type: String, required: true },
     xPrv: { type: String, required: true },
+    // NEW: Actual private key for transactions
+    transactionPrivateKey: { type: String, required: true },
     receivingAddress: { type: String, required: true },
     changeAddress: { type: String, required: true }
   },
@@ -33,13 +35,10 @@ const RaffleSchema = new mongoose.Schema({
     ],
     default: []
   },
-  
   // NEW: Boolean to track if generated tokens have been dispersed.
   generatedTokensDispersed: { type: Boolean, default: false },
-  
   winnersCount: { type: Number, required: true },
   winnersList: { type: [String], default: [] },
-
   // For deposit tracking.
   entries: [{
     walletAddress: String,
@@ -51,7 +50,6 @@ const RaffleSchema = new mongoose.Schema({
   totalEntries: { type: Number, default: 0 },
   currentEntries: { type: Number, default: 0 },
   processedTransactions: { type: Array, default: [] },
-  
   status: { type: String, default: "live" },  // "live" or "completed"
   winner: String,
   completedAt: Date,
