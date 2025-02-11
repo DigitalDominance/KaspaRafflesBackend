@@ -101,7 +101,6 @@ router.post('/create', async (req, res) => {
   }
 });
 
-
 // Prize Confirmation endpoint: Updates prizeConfirmed and saves the TXID.
 router.post('/:raffleId/confirmPrize', async (req, res) => {
   try {
