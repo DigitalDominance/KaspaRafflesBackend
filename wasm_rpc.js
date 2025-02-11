@@ -38,6 +38,7 @@ const TREASURY_PRIVATE_KEY = process.env.TREASURY_PRIVATE_KEY;
 
 /**
  * Helper function to remove the "xprv" prefix.
+ * (We now store a separate transactionPrivateKey so this is used only in fallback cases.)
  */
 function formatXPrv(xprv) {
   if (typeof xprv === 'string' && xprv.startsWith('xprv')) {
@@ -54,18 +55,25 @@ async function createWallet() {
     const mnemonic = Mnemonic.random();
     const seed = mnemonic.toSeed();
     const xPrv = new XPrv(seed);
-    const receivePath = "m/44'/111111'/0'/0/0";
-    const receiveKey = xPrv.derivePath(receivePath).toXPub().toPublicKey();
-    const receiveAddress = receiveKey.toAddress(NetworkType.Mainnet);
+    // For display, derive receiving address from first receiving path:
+    const receivePathDisplay = "m/44'/111111'/0'/0/0";
+    const receiveKey = xPrv.derivePath(receivePathDisplay).toXPub().toPublicKey();
+    const receivingAddress = receiveKey.toAddress(NetworkType.Mainnet);
+    // For transactions, derive a private key from a different path (as in your demo):
+    const transactionPath = "m/44'/111111'/0'/0/1";
+    const transactionPrivateKey = xPrv.derivePath(transactionPath).toPrivateKey();
+    // Derive change address:
     const changePath = "m/44'/111111'/0'/1/0";
     const changeKey = xPrv.derivePath(changePath).toXPub().toPublicKey();
     const changeAddress = changeKey.toAddress(NetworkType.Mainnet);
     return {
       success: true,
       mnemonic: mnemonic.phrase,
-      receivingAddress: receiveAddress.toString(),
+      receivingAddress: receivingAddress.toString(),
       changeAddress: changeAddress.toString(),
       xPrv: xPrv.intoString("xprv"),
+      // Store the actual private key for transactions as a string.
+      transactionPrivateKey: transactionPrivateKey.toString(),
     };
   } catch (err) {
     return { success: false, error: err.message };
@@ -83,8 +91,9 @@ async function sendKaspa(destination, amount, customPrivKey) {
     encoding: Encoding.Borsh,
   });
   await RPC.connect();
-  
-  const keyToUse = customPrivKey ? new PrivateKey(formatXPrv(customPrivKey)) : new PrivateKey(TREASURY_PRIVATE_KEY);
+
+  // Use custom key if provided; otherwise, use treasury key.
+  const keyToUse = customPrivKey ? new PrivateKey(customPrivKey) : new PrivateKey(TREASURY_PRIVATE_KEY);
 
   class TransactionSender {
     constructor(networkId, privateKey, rpc) {
@@ -155,7 +164,7 @@ async function sendKRC20(destination, amount, ticker, customPrivKey) {
   });
   await RPC.connect();
   
-  const keyToUse = customPrivKey ? new PrivateKey(formatXPrv(customPrivKey)) : new PrivateKey(TREASURY_PRIVATE_KEY);
+  const keyToUse = customPrivKey ? new PrivateKey(customPrivKey) : new PrivateKey(TREASURY_PRIVATE_KEY);
   const publicKey = keyToUse.toPublicKey();
   
   const convertedAmount = kaspaToSompi(amount.toString());
@@ -222,7 +231,6 @@ async function sendKRC20(destination, amount, ticker, customPrivKey) {
           reject(new Error("Timeout waiting for commit UTXO maturity"));
         }
       }, DEFAULT_TIMEOUT);
-  
       (async function waitForEvent() {
         while (!eventReceived) {
           await new Promise(r => setTimeout(r, 500));
@@ -263,7 +271,6 @@ async function sendKRC20(destination, amount, ticker, customPrivKey) {
           reject(new Error("Timeout waiting for reveal UTXO maturity"));
         }
       }, DEFAULT_TIMEOUT);
-  
       (async function waitForReveal() {
         while (!eventReceived) {
           await new Promise(r => setTimeout(r, 500));
