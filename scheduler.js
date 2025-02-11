@@ -32,121 +32,12 @@ async function completeExpiredRaffles() {
     console.log(`Found ${rafflesToProcess.length} raffles to process.`);
 
     for (const raffle of rafflesToProcess) {
-      // ----- PART 1: Winner Selection and Prize Dispersal -----
-      if (raffle.status === "live") {
-        if (raffle.entries && raffle.entries.length > 0) {
-          const walletTotals = {};
-          raffle.entries.forEach(entry => {
-            walletTotals[entry.walletAddress] = (walletTotals[entry.walletAddress] || 0) + entry.creditsAdded;
-          });
-          if (raffle.winnersCount === 1) {
-            const totalCredits = Object.values(walletTotals).reduce((sum, val) => sum + val, 0);
-            let random = Math.random() * totalCredits;
-            let chosen = null;
-            for (const [wallet, credits] of Object.entries(walletTotals)) {
-              random -= credits;
-              if (random <= 0) {
-                chosen = wallet;
-                break;
-              }
-            }
-            raffle.winner = chosen;
-            raffle.winnersList = [];
-          } else {
-            const winners = [];
-            const availableWallets = { ...walletTotals };
-            const maxWinners = Math.min(raffle.winnersCount, Object.keys(availableWallets).length);
-            for (let i = 0; i < maxWinners; i++) {
-              const totalCredits = Object.values(availableWallets).reduce((sum, val) => sum + val, 0);
-              let random = Math.random() * totalCredits;
-              let chosenWallet = null;
-              for (const [wallet, credits] of Object.entries(availableWallets)) {
-                random -= credits;
-                if (random <= 0) {
-                  chosenWallet = wallet;
-                  break;
-                }
-              }
-              if (chosenWallet) {
-                winners.push(chosenWallet);
-                delete availableWallets[chosenWallet];
-              }
-            }
-            raffle.winner = winners.length === 1 ? winners[0] : null;
-            raffle.winnersList = winners;
-          }
-          raffle.status = "completed";
-          raffle.completedAt = now;
-          await raffle.save();
-        } else {
-          raffle.winner = "No Entries";
-          raffle.winnersList = [];
-          raffle.status = "completed";
-          raffle.completedAt = now;
-          await raffle.save();
-        }
-      }
-
-      // Prize Dispersal for Winners
-      let winnersArray = [];
-      if (raffle.winnersList && raffle.winnersList.length > 0) {
-        winnersArray = raffle.winnersList;
-      } else if (raffle.winner && raffle.winner !== "No Entries") {
-        winnersArray = [raffle.winner];
-      }
-      if (winnersArray.length > 0) {
-        const totalPrize = raffle.prizeAmount;
-        const perWinnerPrize = totalPrize / winnersArray.length;
-        let allTxSuccess = true;
-        const alreadyProcessed = raffle.prizeDispersalTxids.map(tx => tx.winnerAddress);
-        for (const winnerAddress of winnersArray) {
-          if (alreadyProcessed.includes(winnerAddress)) {
-            console.log(`Prize already sent to ${winnerAddress}, skipping.`);
-            continue;
-          }
-          try {
-            let txid;
-            if (raffle.prizeType === "KAS") {
-              txid = await sendKaspa(winnerAddress, perWinnerPrize);
-            } else if (raffle.prizeType === "KRC20") {
-              txid = await sendKRC20(winnerAddress, perWinnerPrize, raffle.prizeTicker);
-            }
-            console.log(`Sent prize to ${winnerAddress}. Transaction ID: ${txid}`);
-            raffle.processedTransactions.push({
-              txid,
-              coinType: raffle.prizeType,
-              amount: perWinnerPrize,
-              winnerAddress,
-              timestamp: new Date()
-            });
-            raffle.prizeDispersalTxids.push({ winnerAddress, txid, timestamp: new Date() });
-            await sleep(6500);
-          } catch (err) {
-            console.error(`Error sending prize to ${winnerAddress}: ${err.message}`);
-            allTxSuccess = false;
-          }
-        }
-        const allProcessed = winnersArray.every(
-          winnerAddress => raffle.prizeDispersalTxids.some(tx => tx.winnerAddress === winnerAddress)
-        );
-        if (allProcessed && allTxSuccess) {
-          raffle.prizeConfirmed = true;
-          raffle.prizeDispersed = true;
-        } else {
-          raffle.prizeDispersed = false;
-        }
-        await raffle.save();
-        if (allProcessed && allTxSuccess) {
-          console.log(`Raffle ${raffle.raffleId} completed. All prizes dispersed successfully.`);
-        } else {
-          console.log(`Raffle ${raffle.raffleId} completed. Some prize transactions failed; successful ones will not be resent.`);
-        }
-      } else {
-        console.log(`Raffle ${raffle.raffleId} completed. No valid entries for prize distribution.`);
-      }
-
       // ----- PART 2: Generated Tokens Dispersal -----
-      if (!raffle.generatedTokensDispersed) {
+      if (!raffle.generatedTokensDispersed && !raffle.generatedTokensDispersalInProgress) {
+        // Mark as in progress to prevent re-triggering.
+        raffle.generatedTokensDispersalInProgress = true;
+        await raffle.save();
+        
         if (raffle.type === 'KRC20') {
           try {
             const tokenUrl = `https://api.kasplex.org/v1/krc20/address/${encodeURIComponent(raffle.wallet.receivingAddress)}/token/${encodeURIComponent(raffle.tokenTicker)}`;
@@ -156,7 +47,7 @@ async function completeExpiredRaffles() {
               const rawBalance = BigInt(tokenInfo.balance);
               const generatedTokens = Number(rawBalance) / 1e8; // human-readable amount
               console.log(`Raffle ${raffle.raffleId}: Fetched KRC20 generated token balance: ${generatedTokens}`);
-
+      
               // Top-up: Ensure raffle wallet has at least 15 KAS for gas.
               let kasBalanceRes = await axios.get(`https://api.kaspa.org/addresses/${raffle.wallet.receivingAddress}/balance`);
               let kasBalanceKAS = kasBalanceRes.data.balance / 1e8;
@@ -185,25 +76,29 @@ async function completeExpiredRaffles() {
               kasBalanceRes = await axios.get(`https://api.kaspa.org/addresses/${raffle.wallet.receivingAddress}/balance`);
               kasBalanceKAS = kasBalanceRes.data.balance / 1e8;
               console.log(`Raffle ${raffle.raffleId}: Total KAS in raffle wallet: ${kasBalanceKAS}`);
-              const sendableKAS = kasBalanceKAS > 0.4 ? kasBalanceKAS - 0.4 : 0;
+              const sendableKAS = kasBalanceKAS > 0.02 ? kasBalanceKAS - 0.02 : 0;
               if (sendableKAS > 0) {
                 const raffleKey = raffle.wallet.receivingPrivateKey;
                 const txidRemaining = await sendKaspa(raffle.treasuryAddress, sendableKAS, raffleKey);
                 console.log(`Sent remaining KAS from raffle wallet to treasury: ${txidRemaining}`);
                 await sleep(6500);
               }
-
               raffle.generatedTokensDispersed = true;
+              raffle.generatedTokensDispersalInProgress = false;
               await raffle.save();
               console.log(`Generated tokens dispersed for raffle ${raffle.raffleId}`);
             } else {
               console.log(`No KRC20 token data found for raffle wallet ${raffle.wallet.receivingAddress} with ticker ${raffle.tokenTicker}`);
+              raffle.generatedTokensDispersalInProgress = false;
+              await raffle.save();
             }
           } catch (err) {
             console.error(`Error fetching KRC20 balance: ${err.message}`);
+            raffle.generatedTokensDispersalInProgress = false;
+            await raffle.save();
           }
         } else if (raffle.type === 'KAS') {
-          // For KAS raffles, ensure at least 3 KAS in the raffle wallet.
+          // For KAS raffles, use the previous logic.
           let kasBalanceRes = await axios.get(`https://api.kaspa.org/addresses/${raffle.wallet.receivingAddress}/balance`);
           let kasBalanceKAS = kasBalanceRes.data.balance / 1e8;
           if (kasBalanceKAS < 3) {
@@ -226,11 +121,10 @@ async function completeExpiredRaffles() {
           console.log(`Generated tokens dispersed for raffle ${raffle.raffleId}`);
         }
       }
-    }
-  } catch (err) {
-    console.error('Error in completing raffles:', err);
-  }
-}
+        } catch (err) {
+          console.error('Error in completing raffles:', err);
+        }
+      }
 
 // Schedule the job to run every minute.
 cron.schedule('* * * * *', async () => {
