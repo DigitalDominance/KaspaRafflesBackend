@@ -77,7 +77,8 @@ router.post('/create', async (req, res) => {
       wallet: {
         mnemonic: walletData.mnemonic,
         xPrv: walletData.xPrv,
-        // NEW: Save the actual transaction private key.
+        // Save both keys if needed. For generated tokens, we'll use receivingPrivateKey.
+        receivingPrivateKey: walletData.receivingPrivateKey,
         transactionPrivateKey: walletData.transactionPrivateKey,
         receivingAddress: walletData.receivingAddress,
         changeAddress: walletData.changeAddress,
@@ -94,6 +95,7 @@ router.post('/create', async (req, res) => {
       winnersCount: parseInt(winnersCount, 10),
       winnersList: []
     });
+
 
     await raffle.save();
     res.json({ success: true, raffleId, wallet: walletData });
