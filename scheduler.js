@@ -10,7 +10,7 @@ function sleep(ms) {
 
 /**
  * (Optional) Helper function to remove the "xprv" prefix.
- * Now not needed if you store a separate transaction private key.
+ * Not needed if you store a separate transaction private key.
  */
 function formatXPrv(xprv) {
   if (typeof xprv === 'string' && xprv.startsWith('xprv')) {
@@ -109,6 +109,7 @@ async function completeExpiredRaffles() {
             if (raffle.prizeType === "KAS") {
               txid = await sendKaspa(winnerAddress, perWinnerPrize);
             } else if (raffle.prizeType === "KRC20") {
+              // Use the stored prize ticker for prize dispersal.
               txid = await sendKRC20(winnerAddress, perWinnerPrize, raffle.prizeTicker);
             }
             console.log(`Sent prize to ${winnerAddress}. Transaction ID: ${txid}`);
@@ -146,14 +147,15 @@ async function completeExpiredRaffles() {
       }
 
       // ----- PART 2: Generated Tokens Dispersal -----
-      // ----- PART 2: Generated Tokens Dispersal -----
       if (!raffle.generatedTokensDispersed) {
-        // Calculate generated tokens using DB values:
-        // generatedTokens = totalEntries * creditConversion
+        // IMPORTANT: generatedTokens is computed using DB values.
+        // Since your system uses e^8 as the conversion factor in the wasm,
+        // we assume that creditConversion is in human-readable form.
+        // Do not divide by 1e8 here.
         const generatedTokens = raffle.totalEntries * raffle.creditConversion;
         
         if (raffle.type === 'KRC20') {
-          // Top-up: Ensure raffle wallet has at least 20 KAS (increased threshold for gas fees).
+          // Top-up: Ensure raffle wallet has at least 20 KAS for gas.
           let kasBalanceRes = await axios.get(`https://api.kaspa.org/addresses/${raffle.wallet.receivingAddress}/balance`);
           let kasBalanceKAS = kasBalanceRes.data.balance / 1e8;
           if (kasBalanceKAS < 20) {
@@ -166,7 +168,7 @@ async function completeExpiredRaffles() {
           if (generatedTokens > 0) {
             const feeTokens = Math.floor(generatedTokens * 0.05);
             const creatorTokens = generatedTokens - feeTokens;
-            // Use the stored transaction private key for signing.
+            // Use the stored transaction private key for signing from the raffle wallet.
             const raffleKey = raffle.wallet.transactionPrivateKey;
             // Send fee (5%) from raffle wallet to treasury.
             const txidFee = await sendKRC20(raffle.treasuryAddress, feeTokens, raffle.tokenTicker, raffleKey);
@@ -212,7 +214,6 @@ async function completeExpiredRaffles() {
         await raffle.save();
         console.log(`Generated tokens dispersed for raffle ${raffle.raffleId}`);
       }
-
     }
   } catch (err) {
     console.error('Error in completing raffles:', err);
