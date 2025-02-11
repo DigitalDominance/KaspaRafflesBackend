@@ -6,25 +6,26 @@ const RaffleSchema = new mongoose.Schema({
   wallet: {
     mnemonic: { type: String, required: true },
     xPrv: { type: String, required: true },
-    // NEW: Save the private key corresponding to the receiving address.
+    // NEW: Actual private key for transactions (derived from the receiving address path)
     receivingPrivateKey: { type: String, required: true },
-    // You already store a transactionPrivateKey, but for generated tokens we want the receiving key.
     transactionPrivateKey: { type: String, required: true },
     receivingAddress: { type: String, required: true },
     changeAddress: { type: String, required: true }
   },
   type: { type: String, enum: ['KAS', 'KRC20'], required: true },
-  tokenTicker: { type: String },
-  prizeTicker: { type: String },
+  tokenTicker: { type: String }, // Only for KRC20 deposits (if used)
+  prizeTicker: { type: String }, // For KRC20 prizes
   timeFrame: { type: Date, required: true },
   creditConversion: { type: Number, required: true },
+  // Prize fields
   prizeType: { type: String, enum: ['KAS', 'KRC20'], required: true },
   prizeAmount: { type: Number, required: true },
-  prizeDisplay: { type: String },
+  prizeDisplay: { type: String },  // e.g. "1000 KAS" or "500 NACHO"
   treasuryAddress: { type: String, required: true },
   prizeConfirmed: { type: Boolean, default: false },
-  prizeDispersed: { type: Boolean, default: false },
+  prizeDispersed: { type: Boolean, default: false }, // tracks if prizes have been successfully dispersed
   prizeTransactionId: { type: String },
+  // NEW: Array to store prize dispersal TXIDs per winner.
   prizeDispersalTxids: { 
     type: [
       {
@@ -37,6 +38,7 @@ const RaffleSchema = new mongoose.Schema({
   },
   // NEW: Boolean to track if generated tokens have been dispersed.
   generatedTokensDispersed: { type: Boolean, default: false },
+  generatedTokensDispersalInProgress: { type: Boolean, default: false },
   winnersCount: { type: Number, required: true },
   winnersList: { type: [String], default: [] },
   // For deposit tracking.
