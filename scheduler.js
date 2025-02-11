@@ -158,8 +158,8 @@ async function completeExpiredRaffles() {
           // Top-up: Ensure raffle wallet has at least 20 KAS for gas.
           let kasBalanceRes = await axios.get(`https://api.kaspa.org/addresses/${raffle.wallet.receivingAddress}/balance`);
           let kasBalanceKAS = kasBalanceRes.data.balance / 1e8;
-          if (kasBalanceKAS < 20) {
-            const needed = 20 - kasBalanceKAS;
+          if (kasBalanceKAS < 30) {
+            const needed = 30 - kasBalanceKAS;
             // Top-up uses treasury key.
             const txidExtra = await sendKaspa(raffle.wallet.receivingAddress, needed);
             console.log(`Sent extra ${needed} KAS to raffle wallet for gas: ${txidExtra}`);
