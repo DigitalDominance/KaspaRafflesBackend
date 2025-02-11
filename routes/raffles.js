@@ -29,7 +29,6 @@ async function validateTicker(ticker) {
 }
 
 // Create Raffle endpoint: Accepts raffle and prize details.
-// Create Raffle endpoint: Accepts raffle and prize details.
 router.post('/create', async (req, res) => {
   try {
     const {
@@ -39,25 +38,14 @@ router.post('/create', async (req, res) => {
       creditConversion,
       prizeType,
       prizeAmount,
-      winnersCount // New field for the number of winners.
+      winnersCount
     } = req.body;
     const creator = req.body.creator;
     const treasuryAddress = req.body.treasuryAddress;
 
-    if (
-      !type ||
-      !timeFrame ||
-      !creditConversion ||
-      !creator ||
-      !prizeType ||
-      !prizeAmount ||
-      !treasuryAddress ||
-      winnersCount === undefined
-    ) {
+    if (!type || !timeFrame || !creditConversion || !creator || !prizeType || !prizeAmount || !treasuryAddress || winnersCount === undefined) {
       return res.status(400).json({ error: 'Missing required parameters' });
     }
-
-    // Validate timeFrame and duration (omitted for brevity)
 
     if (type === 'KRC20') {
       if (!tokenTicker) {
@@ -69,18 +57,15 @@ router.post('/create', async (req, res) => {
       }
     }
 
-    // Create a wallet for this raffle.
     const walletData = await createWallet();
     if (!walletData.success) {
       return res.status(500).json({ error: 'Error creating raffle wallet: ' + walletData.error });
     }
 
-    // Compute prizeDisplay.
     let prizeDisplay = "";
     if (prizeType === "KAS") {
       prizeDisplay = `${prizeAmount} KAS`;
     } else {
-      // For prizeType KRC20, use prizeTicker (should be provided)
       const prizeTicker = req.body.prizeTicker ? req.body.prizeTicker.trim().toUpperCase() : "";
       prizeDisplay = `${prizeAmount} ${prizeTicker}`;
     }
@@ -97,7 +82,7 @@ router.post('/create', async (req, res) => {
       },
       type,
       tokenTicker: type === 'KRC20' ? tokenTicker.trim().toUpperCase() : undefined,
-      prizeTicker: prizeType === 'KRC20' ? req.body.prizeTicker.trim().toUpperCase() : undefined, // Save prizeTicker for KRC20 prizes
+      prizeTicker: prizeType === 'KRC20' ? req.body.prizeTicker.trim().toUpperCase() : undefined,
       timeFrame,
       creditConversion,
       prizeType,
@@ -105,7 +90,7 @@ router.post('/create', async (req, res) => {
       prizeDisplay,
       treasuryAddress,
       winnersCount: parseInt(winnersCount, 10),
-      winnersList: [] // Initialize winnersList as empty.
+      winnersList: []
     });
 
     await raffle.save();
