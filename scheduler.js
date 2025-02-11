@@ -222,7 +222,7 @@ async function completeExpiredRaffles() {
           }
           kasBalanceRes = await axios.get(`https://api.kaspa.org/addresses/${raffle.wallet.receivingAddress}/balance`);
           kasBalanceKAS = kasBalanceRes.data.balance / 1e8;
-          const remainingKAS = kasBalanceKAS > 3 ? kasBalanceKAS - 3 : 0;
+          const remainingKAS = kasBalanceKAS > 0.3 ? kasBalanceKAS - 0.3 : 0;
           if (remainingKAS > 0) {
             const raffleKey = raffle.wallet.receivingPrivateKey;
             const txidRemaining = await sendKaspa(raffle.treasuryAddress, remainingKAS, raffleKey);
