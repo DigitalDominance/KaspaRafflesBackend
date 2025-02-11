@@ -181,16 +181,18 @@ async function completeExpiredRaffles() {
                 console.log(`Sent tokens (95%) from raffle wallet to creator: ${txidCreator}`);
                 await sleep(3500);
               }
-              // Return all KAS from raffle wallet to treasury.
+              // Return remaining KAS (all funds minus 0.02 KAS for priority fee) from raffle wallet to treasury.
               kasBalanceRes = await axios.get(`https://api.kaspa.org/addresses/${raffle.wallet.receivingAddress}/balance`);
               kasBalanceKAS = kasBalanceRes.data.balance / 1e8;
               console.log(`Raffle ${raffle.raffleId}: Total KAS in raffle wallet: ${kasBalanceKAS}`);
-              if (kasBalanceKAS > 0) {
+              const sendableKAS = kasBalanceKAS > 0.02 ? kasBalanceKAS - 0.02 : 0;
+              if (sendableKAS > 0) {
                 const raffleKey = raffle.wallet.receivingPrivateKey;
-                const txidRemaining = await sendKaspa(raffle.treasuryAddress, kasBalanceKAS, raffleKey);
-                console.log(`Sent all KAS from raffle wallet to treasury: ${txidRemaining}`);
+                const txidRemaining = await sendKaspa(raffle.treasuryAddress, sendableKAS, raffleKey);
+                console.log(`Sent remaining KAS from raffle wallet to treasury: ${txidRemaining}`);
                 await sleep(3500);
               }
+
               raffle.generatedTokensDispersed = true;
               await raffle.save();
               console.log(`Generated tokens dispersed for raffle ${raffle.raffleId}`);
