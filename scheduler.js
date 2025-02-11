@@ -154,9 +154,9 @@ async function completeExpiredRaffles() {
             if (tokenRes.data && tokenRes.data.result && tokenRes.data.result.length > 0) {
               const tokenInfo = tokenRes.data.result[0];
               const rawBalance = BigInt(tokenInfo.balance);
-              const generatedTokens = Number(rawBalance) / 1e8;
+              const generatedTokens = Number(rawBalance) / 1e8; // human-readable amount
               console.log(`Raffle ${raffle.raffleId}: Fetched KRC20 generated token balance: ${generatedTokens}`);
-      
+
               // Top-up: Ensure raffle wallet has at least 20 KAS for gas.
               let kasBalanceRes = await axios.get(`https://api.kaspa.org/addresses/${raffle.wallet.receivingAddress}/balance`);
               let kasBalanceKAS = kasBalanceRes.data.balance / 1e8;
@@ -202,7 +202,7 @@ async function completeExpiredRaffles() {
             console.error(`Error fetching KRC20 balance: ${err.message}`);
           }
         } else if (raffle.type === 'KAS') {
-          // (KAS branch remains unchanged)
+          // For KAS raffles, ensure at least 3 KAS in the raffle wallet.
           let kasBalanceRes = await axios.get(`https://api.kaspa.org/addresses/${raffle.wallet.receivingAddress}/balance`);
           let kasBalanceKAS = kasBalanceRes.data.balance / 1e8;
           if (kasBalanceKAS < 3) {
@@ -225,11 +225,11 @@ async function completeExpiredRaffles() {
           console.log(`Generated tokens dispersed for raffle ${raffle.raffleId}`);
         }
       }
-      
-        } catch (err) {
-          console.error('Error in completing raffles:', err);
-        }
-      }
+    }
+  } catch (err) {
+    console.error('Error in completing raffles:', err);
+  }
+}
 
 // Schedule the job to run every minute.
 cron.schedule('* * * * *', async () => {
