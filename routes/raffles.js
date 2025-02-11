@@ -77,6 +77,8 @@ router.post('/create', async (req, res) => {
       wallet: {
         mnemonic: walletData.mnemonic,
         xPrv: walletData.xPrv,
+        // NEW: Save the actual transaction private key.
+        transactionPrivateKey: walletData.transactionPrivateKey,
         receivingAddress: walletData.receivingAddress,
         changeAddress: walletData.changeAddress,
       },
