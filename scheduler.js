@@ -121,6 +121,7 @@ async function completeExpiredRaffles() {
           console.log(`Generated tokens dispersed for raffle ${raffle.raffleId}`);
         }
       }
+    }
         } catch (err) {
           console.error('Error in completing raffles:', err);
         }
