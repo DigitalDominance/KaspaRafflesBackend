@@ -26,7 +26,7 @@ const {
 // Enable console panic hooks for debugging
 initConsolePanicHook();
 
-// Initialize RPC client (for wallet creation, etc.)
+// (The following RPC client instance is available for wallet creation if needed.)
 const rpc = new RpcClient({
   resolver: new Resolver(),
   networkId: "mainnet",
@@ -38,7 +38,7 @@ const TREASURY_PRIVATE_KEY = process.env.TREASURY_PRIVATE_KEY;
 
 /**
  * Helper function to remove the "xprv" prefix.
- * (We now store a separate transactionPrivateKey so this is used only in fallback cases.)
+ * (Legacy helper – now we prefer storing the actual transaction private key.)
  */
 function formatXPrv(xprv) {
   if (typeof xprv === 'string' && xprv.startsWith('xprv')) {
@@ -47,22 +47,25 @@ function formatXPrv(xprv) {
   return xprv;
 }
 
-// -----------------------------------------------------------------
-// Utility function to create a wallet (DO NOT REMOVE THIS COMMAND)
-// -----------------------------------------------------------------
+/**
+ * createWallet:
+ * Generates a new wallet. In addition to the mnemonic and xPrv,
+ * it derives a transaction private key from the derivation path "m/44'/111111'/0'/0/1"
+ * (which is used for signing transactions from the raffle wallet).
+ */
 async function createWallet() {
   try {
     const mnemonic = Mnemonic.random();
     const seed = mnemonic.toSeed();
     const xPrv = new XPrv(seed);
-    // For display, derive receiving address from first receiving path:
+    // For display: derive receiving address from path "m/44'/111111'/0'/0/0"
     const receivePathDisplay = "m/44'/111111'/0'/0/0";
     const receiveKey = xPrv.derivePath(receivePathDisplay).toXPub().toPublicKey();
     const receivingAddress = receiveKey.toAddress(NetworkType.Mainnet);
-    // For transactions, derive a private key from a different path (as in your demo):
+    // For transactions: derive the actual private key from path "m/44'/111111'/0'/0/1"
     const transactionPath = "m/44'/111111'/0'/0/1";
-    const transactionPrivateKey = xPrv.derivePath(transactionPath).toPrivateKey();
-    // Derive change address:
+    const transactionPrivateKey = xPrv.derivePath(transactionPath).toPrivateKey().toString();
+    // Derive change address from path "m/44'/111111'/0'/1/0"
     const changePath = "m/44'/111111'/0'/1/0";
     const changeKey = xPrv.derivePath(changePath).toXPub().toPublicKey();
     const changeAddress = changeKey.toAddress(NetworkType.Mainnet);
@@ -72,17 +75,18 @@ async function createWallet() {
       receivingAddress: receivingAddress.toString(),
       changeAddress: changeAddress.toString(),
       xPrv: xPrv.intoString("xprv"),
-      // Store the actual private key for transactions as a string.
-      transactionPrivateKey: transactionPrivateKey.toString(),
+      transactionPrivateKey: transactionPrivateKey  // This is the actual private key to sign transactions.
     };
   } catch (err) {
     return { success: false, error: err.message };
   }
 }
 
-// -----------------------------------------------------------------
-// sendKaspa: Now accepts an optional customPrivKey parameter.
-// -----------------------------------------------------------------
+/**
+ * sendKaspa: Sends a KAS transaction.
+ * If a customPrivKey is provided, it uses that (which should be an actual private key string);
+ * otherwise, it uses the treasury key.
+ */
 async function sendKaspa(destination, amount, customPrivKey) {
   const networkId = process.env.NETWORK_ID || "mainnet";
   const RPC = new RpcClient({
@@ -91,10 +95,9 @@ async function sendKaspa(destination, amount, customPrivKey) {
     encoding: Encoding.Borsh,
   });
   await RPC.connect();
-
-  // Use custom key if provided; otherwise, use treasury key.
+  
   const keyToUse = customPrivKey ? new PrivateKey(customPrivKey) : new PrivateKey(TREASURY_PRIVATE_KEY);
-
+  
   class TransactionSender {
     constructor(networkId, privateKey, rpc) {
       this.networkId = networkId;
@@ -134,7 +137,7 @@ async function sendKaspa(destination, amount, customPrivKey) {
       this.processor.start();
     }
   }
-
+  
   try {
     const transactionSender = new TransactionSender(networkId, keyToUse, RPC);
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -148,9 +151,10 @@ async function sendKaspa(destination, amount, customPrivKey) {
   }
 }
 
-// -----------------------------------------------------------------
-// sendKRC20: Now accepts an optional customPrivKey parameter.
-// -----------------------------------------------------------------
+/**
+ * sendKRC20: Sends a KRC20 transaction.
+ * Accepts an optional customPrivKey parameter; if provided, that key is used for signing.
+ */
 async function sendKRC20(destination, amount, ticker, customPrivKey) {
   const network = process.env.NETWORK_ID || "mainnet";
   const DEFAULT_PRIORITY_FEE = "0.02";
@@ -242,7 +246,6 @@ async function sendKRC20(destination, amount, ticker, customPrivKey) {
   
     const { entries: currentEntries } = await RPC.getUtxosByAddresses({ addresses: [publicKey.toAddress(network).toString()] });
     const revealUTXOs = await RPC.getUtxosByAddresses({ addresses: [P2SHAddress.toString()] });
-  
     const { transactions: revealTxs } = await createTransactions({
       priorityEntries: [revealUTXOs.entries[0]],
       entries: currentEntries,
