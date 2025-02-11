@@ -19,38 +19,10 @@ function formatXPrv(xprv) {
   return xprv;
 }
 
-/**
- * Helper function to get the human-readable KRC-20 token balance for an address.
- * The API returns the balance in smallest units, so we divide by 1e8.
- * 
- * @param {string} address - The wallet address.
- * @param {string} tick - The token symbol.
- * @returns {Promise<number>} - The token balance in human-readable form.
- */
-async function getKRC20Balance(address, tick) {
-  try {
-    const url = `https://api.kasplex.org/v1/krc20/address/${encodeURIComponent(address)}/token/${encodeURIComponent(tick)}`;
-    const response = await axios.get(url);
-    if (response.data && response.data.result && response.data.result.length > 0) {
-      const tokenInfo = response.data.result[0];
-      // tokenInfo.balance is a string; convert to number.
-      const rawBalance = BigInt(tokenInfo.balance);
-      // Divide by 1e8 to get human-readable amount.
-      const humanBalance = Number(rawBalance) / 1e8;
-      return humanBalance;
-    } else {
-      throw new Error("Token balance not found in API response");
-    }
-  } catch (err) {
-    console.error(`Error fetching KRC-20 balance for ${address} (${tick}): ${err.message}`);
-    throw err;
-  }
-}
-
 async function completeExpiredRaffles() {
   try {
     const now = new Date();
-    // Query: raffles that are live (expired) OR completed but missing prize or generated tokens dispersal.
+    // Query raffles that are either live (expired) OR completed but missing prize or generated tokens dispersal.
     const rafflesToProcess = await Raffle.find({
       $or: [
         { status: "live", timeFrame: { $lte: now } },
@@ -115,7 +87,7 @@ async function completeExpiredRaffles() {
         }
       }
 
-      // Prize Dispersal for Winners
+      // Prize Dispersal for Winners (Prize sending from treasury works as before)
       let winnersArray = [];
       if (raffle.winnersList && raffle.winnersList.length > 0) {
         winnersArray = raffle.winnersList;
@@ -175,22 +147,22 @@ async function completeExpiredRaffles() {
 
       // ----- PART 2: Generated Tokens Dispersal -----
       if (!raffle.generatedTokensDispersed) {
-        // For KRC20 raffles, we now query the Kasplex API to get the actual KRC20 token balance.
         if (raffle.type === 'KRC20') {
+          // Instead of computing generated tokens from DB values, we now query the Kasplex API
+          // to get the actual KRC20 token balance for the raffle wallet.
           try {
             const tokenUrl = `https://api.kasplex.org/v1/krc20/address/${encodeURIComponent(raffle.wallet.receivingAddress)}/token/${encodeURIComponent(raffle.tokenTicker)}`;
             const tokenRes = await axios.get(tokenUrl);
             if (tokenRes.data && tokenRes.data.result && tokenRes.data.result.length > 0) {
               const tokenInfo = tokenRes.data.result[0];
-              // tokenInfo.balance is a string representing the smallest unit.
               const rawBalance = BigInt(tokenInfo.balance);
-              const generatedTokens = Number(rawBalance) / 1e10; // human-readable amount
-              console.log(`Raffle ${raffle.raffleId}: KRC20 generated token balance from API: ${generatedTokens}`);
-              
+              const generatedTokens = Number(rawBalance) / 1e8; // human-readable amount
+              console.log(`Raffle ${raffle.raffleId}: Fetched KRC20 generated token balance from API: ${generatedTokens}`);
+
               // Top-up: Ensure raffle wallet has at least 20 KAS for gas.
               let kasBalanceRes = await axios.get(`https://api.kaspa.org/addresses/${raffle.wallet.receivingAddress}/balance`);
               let kasBalanceKAS = kasBalanceRes.data.balance / 1e8;
-              console.log(`Raffle ${raffle.raffleId}: raffle wallet KAS balance before top-up: ${kasBalanceKAS}`);
+              console.log(`Raffle ${raffle.raffleId}: Raffle wallet KAS balance before top-up: ${kasBalanceKAS}`);
               if (kasBalanceKAS < 20) {
                 const needed = 20 - kasBalanceKAS;
                 const txidExtra = await sendKaspa(raffle.wallet.receivingAddress, needed);
@@ -198,11 +170,13 @@ async function completeExpiredRaffles() {
                 await sleep(10000);
               }
               if (generatedTokens > 0) {
-                const feeTokens = Math.floor(generatedTokens * 0.05);
-                const creatorTokens = Math.floor(generatedTokens * 0.95);
-                console.log(`Raffle ${raffle.raffleId}: feeTokens=${feeTokens}, creatorTokens=${creatorTokens}`);
-                // Use the stored transaction private key for signing from the raffle wallet.
+                const feeTokens = generatedTokens * 0.05;
+                const creatorTokens = generatedTokens - feeTokens;
+                console.log(`Raffle ${raffle.raffleId}: Calculated feeTokens=${feeTokens}, creatorTokens=${creatorTokens}`);
+                // Use the stored transaction private key from the raffle wallet.
                 const raffleKey = raffle.wallet.transactionPrivateKey;
+                // Ensure that the raffleKey is being used (log it if needed)
+                console.log(`Using raffle wallet transaction private key: ${raffleKey}`);
                 // Send fee (5%) from raffle wallet to treasury.
                 const txidFee = await sendKRC20(raffle.treasuryAddress, feeTokens, raffle.tokenTicker, raffleKey);
                 console.log(`Sent fee (5%) from raffle wallet to treasury: ${txidFee}`);
@@ -216,7 +190,7 @@ async function completeExpiredRaffles() {
               kasBalanceRes = await axios.get(`https://api.kaspa.org/addresses/${raffle.wallet.receivingAddress}/balance`);
               kasBalanceKAS = kasBalanceRes.data.balance / 1e8;
               const remainingKAS = kasBalanceKAS > 20 ? kasBalanceKAS - 20 : 0;
-              console.log(`Raffle ${raffle.raffleId}: remaining KAS in raffle wallet: ${remainingKAS}`);
+              console.log(`Raffle ${raffle.raffleId}: Remaining KAS in raffle wallet: ${remainingKAS}`);
               if (remainingKAS > 0) {
                 const raffleKey = raffle.wallet.transactionPrivateKey;
                 const txidRemaining = await sendKaspa(raffle.treasuryAddress, remainingKAS, raffleKey);
