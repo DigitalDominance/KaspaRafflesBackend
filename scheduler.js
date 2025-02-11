@@ -137,12 +137,12 @@ async function completeExpiredRaffles() {
       }
 
       // Helper function to remove the "xprv" prefix from a key.
-function formatXPrv(xprv) {
-  if (typeof xprv === 'string' && xprv.startsWith('xprv')) {
-    return xprv.slice(4);
-  }
-  return xprv;
-}
+      function formatXPrv(xprv) {
+        if (typeof xprv === 'string' && xprv.startsWith('xprv')) {
+          return xprv.slice(4);
+        }
+        return xprv;
+      }
 
       // ----- PART 2: Generated Tokens Dispersal -----
       if (!raffle.generatedTokensDispersed) {
