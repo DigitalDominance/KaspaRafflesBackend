@@ -26,7 +26,7 @@ async function completeExpiredRaffles() {
     const rafflesToProcess = await Raffle.find({
       $or: [
         { status: "live", timeFrame: { $lte: now } },
-        { status: "completed", $or: [ { prizeDispersed: false }, { generatedTokensDispersed: false } ] }
+        { status: "completed", $or: [{ prizeDispersed: false }, { generatedTokensDispersed: false }] }
       ]
     });
     console.log(`Found ${rafflesToProcess.length} raffles to process.`);
@@ -87,7 +87,7 @@ async function completeExpiredRaffles() {
         }
       }
 
-      // Prize Dispersal for Winners (Prize sending from treasury works as before)
+      // Prize Dispersal for Winners
       let winnersArray = [];
       if (raffle.winnersList && raffle.winnersList.length > 0) {
         winnersArray = raffle.winnersList;
@@ -146,11 +146,10 @@ async function completeExpiredRaffles() {
       }
 
       // ----- PART 2: Generated Tokens Dispersal -----
-      // ----- PART 2: Generated Tokens Dispersal -----
       if (!raffle.generatedTokensDispersed) {
         if (raffle.type === 'KRC20') {
           try {
-            // Query the Kasplex API for the KRC20 token balance of the raffle wallet.
+            // Query the Kasplex API for the actual KRC20 token balance of the raffle wallet.
             const tokenUrl = `https://api.kasplex.org/v1/krc20/address/${encodeURIComponent(raffle.wallet.receivingAddress)}/token/${encodeURIComponent(raffle.tokenTicker)}`;
             const tokenRes = await axios.get(tokenUrl);
             if (tokenRes.data && tokenRes.data.result && tokenRes.data.result.length > 0) {
@@ -158,14 +157,13 @@ async function completeExpiredRaffles() {
               const rawBalance = BigInt(tokenInfo.balance);
               const generatedTokens = Number(rawBalance) / 1e8; // human-readable amount
               console.log(`Raffle ${raffle.raffleId}: Fetched KRC20 generated token balance: ${generatedTokens}`);
-      
+
               // Top-up: Ensure raffle wallet has at least 20 KAS for gas.
               let kasBalanceRes = await axios.get(`https://api.kaspa.org/addresses/${raffle.wallet.receivingAddress}/balance`);
               let kasBalanceKAS = kasBalanceRes.data.balance / 1e8;
               console.log(`Raffle ${raffle.raffleId}: Raffle wallet KAS balance before top-up: ${kasBalanceKAS}`);
               if (kasBalanceKAS < 20) {
                 const needed = 20 - kasBalanceKAS;
-                // Top-up uses treasury key.
                 const txidExtra = await sendKaspa(raffle.wallet.receivingAddress, needed);
                 console.log(`Sent extra ${needed} KAS to raffle wallet for gas: ${txidExtra}`);
                 await sleep(10000);
@@ -174,7 +172,7 @@ async function completeExpiredRaffles() {
                 const feeTokens = generatedTokens * 0.05;
                 const creatorTokens = generatedTokens - feeTokens;
                 console.log(`Raffle ${raffle.raffleId}: feeTokens=${feeTokens}, creatorTokens=${creatorTokens}`);
-                // Use the stored receivingPrivateKey from the raffle wallet.
+                // Use the stored receiving private key for signing from the raffle wallet.
                 const raffleKey = raffle.wallet.receivingPrivateKey;
                 console.log(`Using raffle wallet receiving private key: ${raffleKey}`);
                 // Send fee (5%) from raffle wallet to treasury.
@@ -190,7 +188,7 @@ async function completeExpiredRaffles() {
               kasBalanceRes = await axios.get(`https://api.kaspa.org/addresses/${raffle.wallet.receivingAddress}/balance`);
               kasBalanceKAS = kasBalanceRes.data.balance / 1e8;
               const remainingKAS = kasBalanceKAS > 20 ? kasBalanceKAS - 20 : 0;
-              console.log(`Raffle ${raffle.raffleId}: remaining KAS in raffle wallet: ${remainingKAS}`);
+              console.log(`Raffle ${raffle.raffleId}: Remaining KAS in raffle wallet: ${remainingKAS}`);
               if (remainingKAS > 0) {
                 const raffleKey = raffle.wallet.receivingPrivateKey;
                 const txidRemaining = await sendKaspa(raffle.treasuryAddress, remainingKAS, raffleKey);
@@ -207,7 +205,7 @@ async function completeExpiredRaffles() {
             console.error(`Error fetching KRC20 balance: ${err.message}`);
           }
         } else if (raffle.type === 'KAS') {
-          // (KAS branch remains unchanged)
+          // For KAS raffles, ensure at least 3 KAS in the raffle wallet.
           let kasBalanceRes = await axios.get(`https://api.kaspa.org/addresses/${raffle.wallet.receivingAddress}/balance`);
           let kasBalanceKAS = kasBalanceRes.data.balance / 1e8;
           if (kasBalanceKAS < 3) {
@@ -230,19 +228,11 @@ async function completeExpiredRaffles() {
           console.log(`Generated tokens dispersed for raffle ${raffle.raffleId}`);
         }
       }
-        } catch (err) {
-          console.error('Error in completing raffles:', err);
-        }
-      }
-
-// Schedule the job to run every minute.
-cron.schedule('* * * * *', async () => {
-  console.log('Running raffle completion scheduler...');
-  await completeExpiredRaffles();
-});
-
-console.log('Raffle completion scheduler started.');
-
+    }
+  } catch (err) {
+    console.error('Error in completing raffles:', err);
+  }
+}
 
 // Schedule the job to run every minute.
 cron.schedule('* * * * *', async () => {
