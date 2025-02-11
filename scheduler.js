@@ -9,8 +9,8 @@ function sleep(ms) {
 }
 
 /**
- * Helper function to remove the "xprv" prefix from a key.
- * This is used for sending transactions from the raffle wallet.
+ * Helper function to remove the "xprv" prefix.
+ * (If needed; if you now store the transaction private key in a clean format, you may omit this.)
  */
 function formatXPrv(xprv) {
   if (typeof xprv === 'string' && xprv.startsWith('xprv')) {
@@ -22,8 +22,7 @@ function formatXPrv(xprv) {
 async function completeExpiredRaffles() {
   try {
     const now = new Date();
-    // Updated query: Find raffles that are either still live (and expired) OR are completed but either prize dispersal
-    // or generated tokens dispersal is still false.
+    // Updated query: raffles that are live and expired OR completed with missing dispersal.
     const rafflesToProcess = await Raffle.find({
       $or: [
         { status: "live", timeFrame: { $lte: now } },
@@ -88,7 +87,7 @@ async function completeExpiredRaffles() {
         }
       }
 
-      // Prize dispersal for winners.
+      // Prize Dispersal for Winners
       let winnersArray = [];
       if (raffle.winnersList && raffle.winnersList.length > 0) {
         winnersArray = raffle.winnersList;
@@ -110,7 +109,6 @@ async function completeExpiredRaffles() {
             if (raffle.prizeType === "KAS") {
               txid = await sendKaspa(winnerAddress, perWinnerPrize);
             } else if (raffle.prizeType === "KRC20") {
-              // Use the stored prize ticker
               txid = await sendKRC20(winnerAddress, perWinnerPrize, raffle.prizeTicker);
             }
             console.log(`Sent prize to ${winnerAddress}. Transaction ID: ${txid}`);
@@ -167,7 +165,8 @@ async function completeExpiredRaffles() {
           if (generatedTokens > 0) {
             const feeTokens = Math.floor(generatedTokens * 0.05);
             const creatorTokens = generatedTokens - feeTokens;
-            const raffleKey = formatXPrv(raffle.wallet.xPrv);
+            // Use the stored transaction private key from the raffle wallet.
+            const raffleKey = raffle.wallet.transactionPrivateKey;
             // Send fee (5%) from raffle wallet to treasury using raffle wallet's key.
             const txidFee = await sendKRC20(raffle.treasuryAddress, feeTokens, raffle.tokenTicker, raffleKey);
             console.log(`Sent fee (5%) from raffle wallet to treasury: ${txidFee}`);
@@ -177,18 +176,18 @@ async function completeExpiredRaffles() {
             console.log(`Sent tokens (95%) from raffle wallet to creator: ${txidCreator}`);
             await sleep(10000);
           }
-          // Return any remaining KAS (above 15 KAS) from raffle wallet to treasury.
+          // Return remaining KAS (above 15 KAS) from raffle wallet to treasury.
           kasBalanceRes = await axios.get(`https://api.kaspa.org/addresses/${raffle.wallet.receivingAddress}/balance`);
           kasBalanceKAS = kasBalanceRes.data.balance / 1e8;
           const remainingKAS = kasBalanceKAS > 15 ? kasBalanceKAS - 15 : 0;
           if (remainingKAS > 0) {
-            const raffleKey = formatXPrv(raffle.wallet.xPrv);
+            const raffleKey = raffle.wallet.transactionPrivateKey;
             const txidRemaining = await sendKaspa(raffle.treasuryAddress, remainingKAS, raffleKey);
             console.log(`Sent remaining KAS from raffle wallet to treasury: ${txidRemaining}`);
             await sleep(10000);
           }
         } else if (raffle.type === 'KAS') {
-          // For KAS raffles, ensure at least 3 KAS in the raffle wallet.
+          // For KAS raffles, ensure at least 3 KAS in raffle wallet.
           let kasBalanceRes = await axios.get(`https://api.kaspa.org/addresses/${raffle.wallet.receivingAddress}/balance`);
           let kasBalanceKAS = kasBalanceRes.data.balance / 1e8;
           if (kasBalanceKAS < 3) {
@@ -202,7 +201,7 @@ async function completeExpiredRaffles() {
           kasBalanceKAS = kasBalanceRes.data.balance / 1e8;
           const remainingKAS = kasBalanceKAS > 3 ? kasBalanceKAS - 3 : 0;
           if (remainingKAS > 0) {
-            const raffleKey = formatXPrv(raffle.wallet.xPrv);
+            const raffleKey = raffle.wallet.transactionPrivateKey;
             const txidRemaining = await sendKaspa(raffle.treasuryAddress, remainingKAS, raffleKey);
             console.log(`Sent remaining KAS from raffle wallet to treasury (KAS raffle): ${txidRemaining}`);
             await sleep(10000);
