@@ -9,17 +9,6 @@ function sleep(ms) {
 }
 
 /**
- * (Optional) Helper function to remove the "xprv" prefix.
- * Not needed if you store a separate transaction private key.
- */
-function formatXPrv(xprv) {
-  if (typeof xprv === 'string' && xprv.startsWith('xprv')) {
-    return xprv.slice(4);
-  }
-  return xprv;
-}
-
-/**
  * Helper function that rounds a number to 2 decimal places.
  */
 function roundTo2(amount) {
@@ -188,7 +177,7 @@ async function completeExpiredRaffles() {
                 console.log(`Using raffle wallet receiving private key: ${raffleKey}`);
                 const txidFee = await sendKRC20(raffle.treasuryAddress, feeTokens, raffle.tokenTicker, raffleKey);
                 console.log(`Sent fee (5%) from raffle wallet to treasury: ${txidFee}`);
-                await sleep(6500);
+                await sleep(10000);
                 const txidCreator = await sendKRC20(raffle.creator, creatorTokens, raffle.tokenTicker, raffleKey);
                 console.log(`Sent tokens (95%) from raffle wallet to creator: ${txidCreator}`);
                 await sleep(10000);
