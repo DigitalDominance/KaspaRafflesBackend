@@ -120,7 +120,7 @@ async function completeExpiredRaffles() {
               timestamp: new Date()
             });
             raffle.prizeDispersalTxids.push({ winnerAddress, txid, timestamp: new Date() });
-            await sleep(10000);
+            await sleep(4000);
           } catch (err) {
             console.error(`Error sending prize to ${winnerAddress}: ${err.message}`);
             allTxSuccess = false;
