@@ -10,7 +10,7 @@ function sleep(ms) {
 
 /**
  * (Optional) Helper function to remove the "xprv" prefix.
- * Now not needed for transaction signing because we store the actual private key.
+ * Now not needed if you store a separate transaction private key.
  */
 function formatXPrv(xprv) {
   if (typeof xprv === 'string' && xprv.startsWith('xprv')) {
@@ -22,7 +22,7 @@ function formatXPrv(xprv) {
 async function completeExpiredRaffles() {
   try {
     const now = new Date();
-    // Query: raffles that are live and expired OR completed with missing dispersal.
+    // Updated query: raffles that are live (expired) OR completed but missing prize or generated tokens dispersal.
     const rafflesToProcess = await Raffle.find({
       $or: [
         { status: "live", timeFrame: { $lte: now } },
@@ -152,11 +152,11 @@ async function completeExpiredRaffles() {
         const generatedTokens = raffle.totalEntries * raffle.creditConversion;
         
         if (raffle.type === 'KRC20') {
-          // Top-up: Ensure raffle wallet has at least 15 KAS.
+          // Top-up: Ensure raffle wallet has at least 20 KAS (increased threshold for gas fees).
           let kasBalanceRes = await axios.get(`https://api.kaspa.org/addresses/${raffle.wallet.receivingAddress}/balance`);
           let kasBalanceKAS = kasBalanceRes.data.balance / 1e8;
-          if (kasBalanceKAS < 15) {
-            const needed = 15 - kasBalanceKAS;
+          if (kasBalanceKAS < 20) {
+            const needed = 20 - kasBalanceKAS;
             // Top-up uses treasury key.
             const txidExtra = await sendKaspa(raffle.wallet.receivingAddress, needed);
             console.log(`Sent extra ${needed} KAS to raffle wallet for gas: ${txidExtra}`);
@@ -176,10 +176,10 @@ async function completeExpiredRaffles() {
             console.log(`Sent tokens (95%) from raffle wallet to creator: ${txidCreator}`);
             await sleep(10000);
           }
-          // Return remaining KAS (above 15 KAS) from raffle wallet to treasury.
+          // Return remaining KAS (above 20 KAS) from raffle wallet to treasury.
           kasBalanceRes = await axios.get(`https://api.kaspa.org/addresses/${raffle.wallet.receivingAddress}/balance`);
           kasBalanceKAS = kasBalanceRes.data.balance / 1e8;
-          const remainingKAS = kasBalanceKAS > 15 ? kasBalanceKAS - 15 : 0;
+          const remainingKAS = kasBalanceKAS > 20 ? kasBalanceKAS - 20 : 0;
           if (remainingKAS > 0) {
             const raffleKey = raffle.wallet.transactionPrivateKey;
             const txidRemaining = await sendKaspa(raffle.treasuryAddress, remainingKAS, raffleKey);
