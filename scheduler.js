@@ -147,6 +147,7 @@ async function completeExpiredRaffles() {
       if (!raffle.generatedTokensDispersed && !raffle.generatedTokensDispersalInProgress) {
         raffle.generatedTokensDispersalInProgress = true;
         await raffle.save();
+        await sleep(10000);
 
         if (raffle.type === 'KRC20') {
           try {
