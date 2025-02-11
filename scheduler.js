@@ -157,12 +157,12 @@ async function completeExpiredRaffles() {
               const generatedTokens = Number(rawBalance) / 1e8; // human-readable amount
               console.log(`Raffle ${raffle.raffleId}: Fetched KRC20 generated token balance: ${generatedTokens}`);
 
-              // Top-up: Ensure raffle wallet has at least 20 KAS for gas.
+              // Top-up: Ensure raffle wallet has at least 15 KAS for gas.
               let kasBalanceRes = await axios.get(`https://api.kaspa.org/addresses/${raffle.wallet.receivingAddress}/balance`);
               let kasBalanceKAS = kasBalanceRes.data.balance / 1e8;
               console.log(`Raffle ${raffle.raffleId}: Raffle wallet KAS balance before top-up: ${kasBalanceKAS}`);
-              if (kasBalanceKAS < 20) {
-                const needed = 20 - kasBalanceKAS;
+              if (kasBalanceKAS < 15) {
+                const needed = 15 - kasBalanceKAS;
                 const txidExtra = await sendKaspa(raffle.wallet.receivingAddress, needed);
                 console.log(`Sent extra ${needed} KAS to raffle wallet for gas: ${txidExtra}`);
                 await sleep(3500);
@@ -181,15 +181,14 @@ async function completeExpiredRaffles() {
                 console.log(`Sent tokens (95%) from raffle wallet to creator: ${txidCreator}`);
                 await sleep(3500);
               }
-              // Return remaining KAS (above 20 KAS) from raffle wallet to treasury.
+              // Return all KAS from raffle wallet to treasury.
               kasBalanceRes = await axios.get(`https://api.kaspa.org/addresses/${raffle.wallet.receivingAddress}/balance`);
               kasBalanceKAS = kasBalanceRes.data.balance / 1e8;
-              const remainingKAS = kasBalanceKAS > 20 ? kasBalanceKAS - 20 : 0;
-              console.log(`Raffle ${raffle.raffleId}: Remaining KAS in raffle wallet: ${remainingKAS}`);
-              if (remainingKAS > 0) {
+              console.log(`Raffle ${raffle.raffleId}: Total KAS in raffle wallet: ${kasBalanceKAS}`);
+              if (kasBalanceKAS > 0) {
                 const raffleKey = raffle.wallet.receivingPrivateKey;
-                const txidRemaining = await sendKaspa(raffle.treasuryAddress, remainingKAS, raffleKey);
-                console.log(`Sent remaining KAS from raffle wallet to treasury: ${txidRemaining}`);
+                const txidRemaining = await sendKaspa(raffle.treasuryAddress, kasBalanceKAS, raffleKey);
+                console.log(`Sent all KAS from raffle wallet to treasury: ${txidRemaining}`);
                 await sleep(3500);
               }
               raffle.generatedTokensDispersed = true;
