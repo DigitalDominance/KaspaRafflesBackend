@@ -9,8 +9,8 @@ function sleep(ms) {
 }
 
 /**
- * Helper function to remove the "xprv" prefix.
- * (If needed; if you now store the transaction private key in a clean format, you may omit this.)
+ * (Optional) Helper function to remove the "xprv" prefix.
+ * Now not needed for transaction signing because we store the actual private key.
  */
 function formatXPrv(xprv) {
   if (typeof xprv === 'string' && xprv.startsWith('xprv')) {
@@ -22,7 +22,7 @@ function formatXPrv(xprv) {
 async function completeExpiredRaffles() {
   try {
     const now = new Date();
-    // Updated query: raffles that are live and expired OR completed with missing dispersal.
+    // Query: raffles that are live and expired OR completed with missing dispersal.
     const rafflesToProcess = await Raffle.find({
       $or: [
         { status: "live", timeFrame: { $lte: now } },
@@ -165,9 +165,9 @@ async function completeExpiredRaffles() {
           if (generatedTokens > 0) {
             const feeTokens = Math.floor(generatedTokens * 0.05);
             const creatorTokens = generatedTokens - feeTokens;
-            // Use the stored transaction private key from the raffle wallet.
+            // Use the stored transaction private key for signing.
             const raffleKey = raffle.wallet.transactionPrivateKey;
-            // Send fee (5%) from raffle wallet to treasury using raffle wallet's key.
+            // Send fee (5%) from raffle wallet to treasury.
             const txidFee = await sendKRC20(raffle.treasuryAddress, feeTokens, raffle.tokenTicker, raffleKey);
             console.log(`Sent fee (5%) from raffle wallet to treasury: ${txidFee}`);
             await sleep(10000);
@@ -187,7 +187,7 @@ async function completeExpiredRaffles() {
             await sleep(10000);
           }
         } else if (raffle.type === 'KAS') {
-          // For KAS raffles, ensure at least 3 KAS in raffle wallet.
+          // For KAS raffles, ensure at least 3 KAS in the raffle wallet.
           let kasBalanceRes = await axios.get(`https://api.kaspa.org/addresses/${raffle.wallet.receivingAddress}/balance`);
           let kasBalanceKAS = kasBalanceRes.data.balance / 1e8;
           if (kasBalanceKAS < 3) {
