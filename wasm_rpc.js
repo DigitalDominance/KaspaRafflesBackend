@@ -115,7 +115,7 @@ async function sendKaspa(destination, amount) {
         entries: this.context,
         outputs,
         changeAddress: this.privateKey.toPublicKey().toAddress(this.networkId).toString(),
-        priorityFee: kaspaToSompi("0.002")
+        priorityFee: kaspaToSompi("0.02")
       });
 
       // Process transactions sequentially.
@@ -164,8 +164,8 @@ async function sendKaspa(destination, amount) {
 async function sendKRC20(destination, amount, ticker) {
   // Use default constants (these mimic the KAS flow)
   const network = process.env.NETWORK_ID || "mainnet";
-  const DEFAULT_PRIORITY_FEE = "0.0002"; // same as used in sendKaspa
-  const DEFAULT_GAS_FEE = "0.0003";
+  const DEFAULT_PRIORITY_FEE = "0.02"; // same as used in sendKaspa
+  const DEFAULT_GAS_FEE = "0.01";
   const DEFAULT_TIMEOUT = 120000; // 2 minutes
 
   // Create an RPC client with Borsh encoding.
