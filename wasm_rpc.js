@@ -58,24 +58,31 @@ async function createWallet() {
     const mnemonic = Mnemonic.random();
     const seed = mnemonic.toSeed();
     const xPrv = new XPrv(seed);
-    // For display: derive receiving address from path "m/44'/111111'/0'/0/0"
-    const receivePathDisplay = "m/44'/111111'/0'/0/0";
-    const receiveKey = xPrv.derivePath(receivePathDisplay).toXPub().toPublicKey();
-    const receivingAddress = receiveKey.toAddress(NetworkType.Mainnet);
-    // For transactions: derive the actual private key from path "m/44'/111111'/0'/0/1"
+    // Derive the receiving address and its corresponding private key from the same path:
+    const receivePath = "m/44'/111111'/0'/0/0";
+    const receiveKey = xPrv.derivePath(receivePath);
+    const receivingAddress = receiveKey.toXPub().toPublicKey().toAddress(NetworkType.Mainnet);
+    const receivingPrivateKey = receiveKey.toPrivateKey().toString(); // this key controls the receivingAddress
+
+    // (Optionally, derive a separate transaction key if needed)
     const transactionPath = "m/44'/111111'/0'/0/1";
     const transactionPrivateKey = xPrv.derivePath(transactionPath).toPrivateKey().toString();
-    // Derive change address from path "m/44'/111111'/0'/1/0"
+
+    // Derive change address from a separate path:
     const changePath = "m/44'/111111'/0'/1/0";
     const changeKey = xPrv.derivePath(changePath).toXPub().toPublicKey();
     const changeAddress = changeKey.toAddress(NetworkType.Mainnet);
+    
     return {
       success: true,
       mnemonic: mnemonic.phrase,
       receivingAddress: receivingAddress.toString(),
       changeAddress: changeAddress.toString(),
       xPrv: xPrv.intoString("xprv"),
-      transactionPrivateKey: transactionPrivateKey  // This is the actual private key to sign transactions.
+      // NEW: Save the receiving address's private key.
+      receivingPrivateKey: receivingPrivateKey,
+      // You can also save the transactionPrivateKey if needed.
+      transactionPrivateKey: transactionPrivateKey
     };
   } catch (err) {
     return { success: false, error: err.message };
