@@ -26,7 +26,7 @@ const {
 // Enable console panic hooks for debugging
 initConsolePanicHook();
 
-// Initialize RPC client (for wallet creation and other default operations)
+// Initialize RPC client (for wallet creation, etc.)
 const rpc = new RpcClient({
   resolver: new Resolver(),
   networkId: "mainnet",
@@ -35,6 +35,16 @@ const rpc = new RpcClient({
 // Treasury wallet credentials from environment variables
 const TREASURY_ADDRESS = process.env.TREASURY_ADDRESS;
 const TREASURY_PRIVATE_KEY = process.env.TREASURY_PRIVATE_KEY;
+
+/**
+ * Helper function to remove the "xprv" prefix.
+ */
+function formatXPrv(xprv) {
+  if (typeof xprv === 'string' && xprv.startsWith('xprv')) {
+    return xprv.slice(4);
+  }
+  return xprv;
+}
 
 // -----------------------------------------------------------------
 // Utility function to create a wallet (DO NOT REMOVE THIS COMMAND)
@@ -63,9 +73,7 @@ async function createWallet() {
 }
 
 // -----------------------------------------------------------------
-// Updated: Function to send KAS (Kaspa) Prize (or any KAS send)
-// Now accepts an optional 4th parameter: customPrivKey.
-// If provided, it uses that key for signing instead of the treasury key.
+// sendKaspa: Now accepts an optional customPrivKey parameter.
 // -----------------------------------------------------------------
 async function sendKaspa(destination, amount, customPrivKey) {
   const networkId = process.env.NETWORK_ID || "mainnet";
@@ -75,9 +83,8 @@ async function sendKaspa(destination, amount, customPrivKey) {
     encoding: Encoding.Borsh,
   });
   await RPC.connect();
-
-  // Use custom key if provided; otherwise, use treasury key.
-  const keyToUse = customPrivKey ? new PrivateKey(customPrivKey) : new PrivateKey(TREASURY_PRIVATE_KEY);
+  
+  const keyToUse = customPrivKey ? new PrivateKey(formatXPrv(customPrivKey)) : new PrivateKey(TREASURY_PRIVATE_KEY);
 
   class TransactionSender {
     constructor(networkId, privateKey, rpc) {
@@ -88,7 +95,6 @@ async function sendKaspa(destination, amount, customPrivKey) {
       this.context = new UtxoContext({ processor: this.processor });
       this.registerProcessor();
     }
-
     async transferFunds(address, amount) {
       const payments = [{
         address,
@@ -96,7 +102,6 @@ async function sendKaspa(destination, amount, customPrivKey) {
       }];
       return await this.send(payments);
     }
-
     async send(outputs) {
       const { transactions, summary } = await createTransactions({
         entries: this.context,
@@ -104,14 +109,12 @@ async function sendKaspa(destination, amount, customPrivKey) {
         changeAddress: this.privateKey.toPublicKey().toAddress(this.networkId).toString(),
         priorityFee: kaspaToSompi("0.02")
       });
-
       for (const tx of transactions) {
         tx.sign([this.privateKey]);
         await tx.submit(this.rpc);
       }
       return summary.finalTransactionId;
     }
-
     registerProcessor() {
       this.processor.addEventListener("utxo-proc-start", async () => {
         await this.context.clear();
@@ -137,25 +140,24 @@ async function sendKaspa(destination, amount, customPrivKey) {
 }
 
 // -----------------------------------------------------------------
-// Updated: Function to send KRC20 token
-// Now accepts an optional 4th parameter: customPrivKey.
+// sendKRC20: Now accepts an optional customPrivKey parameter.
+// -----------------------------------------------------------------
 async function sendKRC20(destination, amount, ticker, customPrivKey) {
   const network = process.env.NETWORK_ID || "mainnet";
   const DEFAULT_PRIORITY_FEE = "0.02";
   const DEFAULT_GAS_FEE = "0.3";
   const DEFAULT_TIMEOUT = 120000;
-
+  
   const RPC = new RpcClient({
     resolver: new Resolver(),
     encoding: Encoding.Borsh,
     networkId: network
   });
   await RPC.connect();
-
-  // Use custom key if provided; otherwise, treasury key.
-  const keyToUse = customPrivKey ? new PrivateKey(customPrivKey) : new PrivateKey(TREASURY_PRIVATE_KEY);
+  
+  const keyToUse = customPrivKey ? new PrivateKey(formatXPrv(customPrivKey)) : new PrivateKey(TREASURY_PRIVATE_KEY);
   const publicKey = keyToUse.toPublicKey();
-
+  
   const convertedAmount = kaspaToSompi(amount.toString());
   const data = {
     "p": "krc-20",
@@ -164,7 +166,7 @@ async function sendKRC20(destination, amount, ticker, customPrivKey) {
     "amt": convertedAmount.toString(),
     "to": destination
   };
-
+  
   const script = new ScriptBuilder()
     .addData(publicKey.toXOnlyPublicKey().toString())
     .addOp(Opcodes.OpCheckSig)
@@ -174,17 +176,17 @@ async function sendKRC20(destination, amount, ticker, customPrivKey) {
     .addI64(0n)
     .addData(Buffer.from(JSON.stringify(data)))
     .addOp(Opcodes.OpEndIf);
-
+  
   const P2SHAddress = addressFromScriptPublicKey(script.createPayToScriptHashScript(), network);
   if (!P2SHAddress) {
     await RPC.disconnect();
     throw new Error("Failed to create P2SH address for KRC20 transfer");
   }
-
+  
   await RPC.subscribeUtxosChanged([publicKey.toAddress(network).toString()]);
   let eventReceived = false;
   let submittedTrxId;
-
+  
   RPC.addEventListener('utxos-changed', async (event) => {
     const addrStr = publicKey.toAddress(network).toString();
     const addedEntry = event.data.added.find(entry =>
@@ -194,7 +196,7 @@ async function sendKRC20(destination, amount, ticker, customPrivKey) {
       eventReceived = true;
     }
   });
-
+  
   try {
     const { entries } = await RPC.getUtxosByAddresses({ addresses: [publicKey.toAddress(network).toString()] });
     const { transactions } = await createTransactions({
@@ -208,19 +210,19 @@ async function sendKRC20(destination, amount, ticker, customPrivKey) {
       priorityFee: kaspaToSompi(DEFAULT_PRIORITY_FEE),
       networkId: network
     });
-
+  
     for (const tx of transactions) {
       tx.sign([keyToUse]);
       submittedTrxId = await tx.submit(RPC);
     }
-
+  
     await new Promise((resolve, reject) => {
       const commitTimeout = setTimeout(() => {
         if (!eventReceived) {
           reject(new Error("Timeout waiting for commit UTXO maturity"));
         }
       }, DEFAULT_TIMEOUT);
-
+  
       (async function waitForEvent() {
         while (!eventReceived) {
           await new Promise(r => setTimeout(r, 500));
@@ -229,10 +231,10 @@ async function sendKRC20(destination, amount, ticker, customPrivKey) {
         resolve();
       })();
     });
-
+  
     const { entries: currentEntries } = await RPC.getUtxosByAddresses({ addresses: [publicKey.toAddress(network).toString()] });
     const revealUTXOs = await RPC.getUtxosByAddresses({ addresses: [P2SHAddress.toString()] });
-
+  
     const { transactions: revealTxs } = await createTransactions({
       priorityEntries: [revealUTXOs.entries[0]],
       entries: currentEntries,
@@ -241,7 +243,7 @@ async function sendKRC20(destination, amount, ticker, customPrivKey) {
       priorityFee: kaspaToSompi(DEFAULT_GAS_FEE),
       networkId: network
     });
-
+  
     let revealHash;
     for (const tx of revealTxs) {
       tx.sign([keyToUse], false);
@@ -253,7 +255,7 @@ async function sendKRC20(destination, amount, ticker, customPrivKey) {
       revealHash = await tx.submit(RPC);
       submittedTrxId = revealHash;
     }
-
+  
     eventReceived = false;
     await new Promise((resolve, reject) => {
       const revealTimeout = setTimeout(() => {
@@ -261,7 +263,7 @@ async function sendKRC20(destination, amount, ticker, customPrivKey) {
           reject(new Error("Timeout waiting for reveal UTXO maturity"));
         }
       }, DEFAULT_TIMEOUT);
-
+  
       (async function waitForReveal() {
         while (!eventReceived) {
           await new Promise(r => setTimeout(r, 500));
@@ -270,7 +272,7 @@ async function sendKRC20(destination, amount, ticker, customPrivKey) {
         resolve();
       })();
     });
-
+  
     await RPC.disconnect();
     return revealHash;
   } catch (err) {
