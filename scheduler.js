@@ -146,10 +146,11 @@ async function completeExpiredRaffles() {
       }
 
       // ----- PART 2: Generated Tokens Dispersal -----
+      // ----- PART 2: Generated Tokens Dispersal -----
       if (!raffle.generatedTokensDispersed) {
         // Calculate generated tokens using DB values:
         // generatedTokens = totalEntries * creditConversion
-        const generatedTokens = (raffle.totalEntries * raffle.creditConversion) / 1e8;
+        const generatedTokens = raffle.totalEntries * raffle.creditConversion;
         
         if (raffle.type === 'KRC20') {
           // Top-up: Ensure raffle wallet has at least 20 KAS (increased threshold for gas fees).
@@ -211,6 +212,7 @@ async function completeExpiredRaffles() {
         await raffle.save();
         console.log(`Generated tokens dispersed for raffle ${raffle.raffleId}`);
       }
+
     }
   } catch (err) {
     console.error('Error in completing raffles:', err);
