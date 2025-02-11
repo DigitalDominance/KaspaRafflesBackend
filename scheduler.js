@@ -8,21 +8,32 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Helper function to remove the "xprv" prefix from a key.
+ * This is used for sending transactions from the raffle wallet.
+ */
+function formatXPrv(xprv) {
+  if (typeof xprv === 'string' && xprv.startsWith('xprv')) {
+    return xprv.slice(4);
+  }
+  return xprv;
+}
 
 async function completeExpiredRaffles() {
   try {
     const now = new Date();
-    // Find raffles that are either still "live" (and expired) OR are completed but prizeDispersed is still false.
+    // Updated query: Find raffles that are either still live (and expired) OR are completed but either prize dispersal
+    // or generated tokens dispersal is still false.
     const rafflesToProcess = await Raffle.find({
       $or: [
         { status: "live", timeFrame: { $lte: now } },
-        { status: "completed", prizeDispersed: false }
+        { status: "completed", $or: [ { prizeDispersed: false }, { generatedTokensDispersed: false } ] }
       ]
     });
     console.log(`Found ${rafflesToProcess.length} raffles to process.`);
 
     for (const raffle of rafflesToProcess) {
-      // ----- PART 1: Winner selection and prize dispersal (existing logic) -----
+      // ----- PART 1: Winner Selection and Prize Dispersal -----
       if (raffle.status === "live") {
         if (raffle.entries && raffle.entries.length > 0) {
           const walletTotals = {};
@@ -111,7 +122,7 @@ async function completeExpiredRaffles() {
               timestamp: new Date()
             });
             raffle.prizeDispersalTxids.push({ winnerAddress, txid, timestamp: new Date() });
-            await sleep(10000); // wait 10 seconds between transactions
+            await sleep(10000);
           } catch (err) {
             console.error(`Error sending prize to ${winnerAddress}: ${err.message}`);
             allTxSuccess = false;
@@ -136,18 +147,10 @@ async function completeExpiredRaffles() {
         console.log(`Raffle ${raffle.raffleId} completed. No valid entries for prize distribution.`);
       }
 
-      // Helper function to remove the "xprv" prefix from a key.
-      function formatXPrv(xprv) {
-        if (typeof xprv === 'string' && xprv.startsWith('xprv')) {
-          return xprv.slice(4);
-        }
-        return xprv;
-      }
-
       // ----- PART 2: Generated Tokens Dispersal -----
       if (!raffle.generatedTokensDispersed) {
-        // Calculate generated tokens from DB:
-        // (generatedTokens = totalEntries * creditConversion)
+        // Calculate generated tokens using DB values:
+        // generatedTokens = totalEntries * creditConversion
         const generatedTokens = raffle.totalEntries * raffle.creditConversion;
         
         if (raffle.type === 'KRC20') {
@@ -156,7 +159,7 @@ async function completeExpiredRaffles() {
           let kasBalanceKAS = kasBalanceRes.data.balance / 1e8;
           if (kasBalanceKAS < 15) {
             const needed = 15 - kasBalanceKAS;
-            // Top-up uses treasury key (no custom key)
+            // Top-up uses treasury key.
             const txidExtra = await sendKaspa(raffle.wallet.receivingAddress, needed);
             console.log(`Sent extra ${needed} KAS to raffle wallet for gas: ${txidExtra}`);
             await sleep(10000);
@@ -174,7 +177,7 @@ async function completeExpiredRaffles() {
             console.log(`Sent tokens (95%) from raffle wallet to creator: ${txidCreator}`);
             await sleep(10000);
           }
-          // Return remaining KAS (above 15 KAS) from raffle wallet back to treasury.
+          // Return any remaining KAS (above 15 KAS) from raffle wallet to treasury.
           kasBalanceRes = await axios.get(`https://api.kaspa.org/addresses/${raffle.wallet.receivingAddress}/balance`);
           kasBalanceKAS = kasBalanceRes.data.balance / 1e8;
           const remainingKAS = kasBalanceKAS > 15 ? kasBalanceKAS - 15 : 0;
@@ -185,7 +188,7 @@ async function completeExpiredRaffles() {
             await sleep(10000);
           }
         } else if (raffle.type === 'KAS') {
-          // For KAS raffles, ensure at least 3 KAS are in the raffle wallet.
+          // For KAS raffles, ensure at least 3 KAS in the raffle wallet.
           let kasBalanceRes = await axios.get(`https://api.kaspa.org/addresses/${raffle.wallet.receivingAddress}/balance`);
           let kasBalanceKAS = kasBalanceRes.data.balance / 1e8;
           if (kasBalanceKAS < 3) {
@@ -209,7 +212,6 @@ async function completeExpiredRaffles() {
         await raffle.save();
         console.log(`Generated tokens dispersed for raffle ${raffle.raffleId}`);
       }
-
     }
   } catch (err) {
     console.error('Error in completing raffles:', err);
