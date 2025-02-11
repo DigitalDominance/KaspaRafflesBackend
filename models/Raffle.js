@@ -1,3 +1,5 @@
+const mongoose = require('mongoose'); 
+
 const RaffleSchema = new mongoose.Schema({
   raffleId: { type: String, unique: true, required: true },
   creator: { type: String, required: true },
@@ -33,9 +35,11 @@ const RaffleSchema = new mongoose.Schema({
     ],
     default: []
   },
+  // NEW: Boolean to track if generated tokens have been dispersed.
   generatedTokensDispersed: { type: Boolean, default: false },
   winnersCount: { type: Number, required: true },
   winnersList: { type: [String], default: [] },
+  // For deposit tracking.
   entries: [{
     walletAddress: String,
     txid: { type: String, sparse: true },
@@ -46,7 +50,7 @@ const RaffleSchema = new mongoose.Schema({
   totalEntries: { type: Number, default: 0 },
   currentEntries: { type: Number, default: 0 },
   processedTransactions: { type: Array, default: [] },
-  status: { type: String, default: "live" },
+  status: { type: String, default: "live" },  // "live" or "completed"
   winner: String,
   completedAt: Date,
   createdAt: { type: Date, default: Date.now }
