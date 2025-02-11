@@ -70,13 +70,13 @@ async function completeExpiredRaffles() {
                 await sleep(6500);
                 const txidCreator = await sendKRC20(raffle.creator, creatorTokens, raffle.tokenTicker, raffleKey);
                 console.log(`Sent tokens (95%) from raffle wallet to creator: ${txidCreator}`);
-                await sleep(6500);
+                await sleep(10000);
               }
               // Return remaining KAS (all funds minus 0.02 KAS for priority fee) from raffle wallet to treasury.
               kasBalanceRes = await axios.get(`https://api.kaspa.org/addresses/${raffle.wallet.receivingAddress}/balance`);
               kasBalanceKAS = kasBalanceRes.data.balance / 1e8;
               console.log(`Raffle ${raffle.raffleId}: Total KAS in raffle wallet: ${kasBalanceKAS}`);
-              const sendableKAS = kasBalanceKAS > 0.02 ? kasBalanceKAS - 0.02 : 0;
+              const sendableKAS = kasBalanceKAS > 0.6 ? kasBalanceKAS - 0.6 : 0;
               if (sendableKAS > 0) {
                 const raffleKey = raffle.wallet.receivingPrivateKey;
                 const txidRemaining = await sendKaspa(raffle.treasuryAddress, sendableKAS, raffleKey);
