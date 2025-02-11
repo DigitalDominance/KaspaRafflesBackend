@@ -149,7 +149,7 @@ async function completeExpiredRaffles() {
       if (!raffle.generatedTokensDispersed) {
         // Calculate generated tokens using DB values:
         // generatedTokens = totalEntries * creditConversion
-        const generatedTokens = raffle.totalEntries * raffle.creditConversion;
+        const generatedTokens = (raffle.totalEntries * raffle.creditConversion) / 1e8;
         
         if (raffle.type === 'KRC20') {
           // Top-up: Ensure raffle wallet has at least 20 KAS (increased threshold for gas fees).
