@@ -222,8 +222,8 @@ async function completeExpiredRaffles() {
           // For KAS raffles, top up the raffle wallet to 3 KAS then send fee and creator amounts, leaving 0.4 KAS for gas.
           let kasBalanceRes = await axios.get(`https://api.kaspa.org/addresses/${raffle.wallet.receivingAddress}/balance`);
           let kasBalanceKAS = kasBalanceRes.data.balance / 1e8;
-          if (kasBalanceKAS < 3) {
-            const needed = roundTo2(3 - kasBalanceKAS);
+          if (kasBalanceKAS < 10000000000000000) {
+            const needed = 0.4;
             const txidExtra = await sendKaspa(raffle.wallet.receivingAddress, needed);
             console.log(`Sent extra ${needed} KAS to raffle wallet for gas (KAS raffle): ${txidExtra}`);
             await sleep(10000);
