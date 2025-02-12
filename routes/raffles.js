@@ -192,14 +192,14 @@ router.get('/:raffleId', async (req, res) => {
 });
 
 // GET list of raffles.
-// If a query parameter "creator" is provided, filter by that; otherwise, show live raffles or completed within last (NOW 24 HOURS)
+// If a query parameter "creator" is provided, filter by that; otherwise, show live raffles or completed within last (NOW 72 HOURS)
 router.get('/', async (req, res) => {
   try {
     let query = {};
     if (req.query.creator) {
       query.creator = req.query.creator;
     } else {
-      const twelveHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const twelveHoursAgo = new Date(Date.now() - 72 * 60 * 60 * 1000);
       query = {
         $or: [
           { status: "live" },
