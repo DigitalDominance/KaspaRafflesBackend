@@ -63,12 +63,16 @@ router.post('/create', async (req, res) => {
     }
 
     let prizeDisplay = "";
+// Convert prizeAmount to a number and format it with commas
+    const formattedAmount = Number(prizeAmount).toLocaleString();
+    
     if (prizeType === "KAS") {
-      prizeDisplay = `${prizeAmount} KAS`;
+      prizeDisplay = `${formattedAmount} KAS`;
     } else {
       const prizeTicker = req.body.prizeTicker ? req.body.prizeTicker.trim().toUpperCase() : "";
-      prizeDisplay = `${prizeAmount} ${prizeTicker}`;
+      prizeDisplay = `${formattedAmount} ${prizeTicker}`;
     }
+
 
     const raffleId = uuidv4();
     const raffle = new Raffle({
